@@ -7,53 +7,55 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>FirstPick - Fixité</title>
     <style>
-    /* Configuration des couleurs système */
-    :root { background-color: #000; }
+        /* 1. Structure Globale sans scroll */
+        html, body { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            overflow: hidden; background-color: #000; 
+            font-family: sans-serif;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
 
-    body, html { 
-        margin: 0; padding: 0; width: 100%; height: 100%; 
-        overflow: hidden; background-color: #000; 
-        touch-action: none; position: fixed; font-family: sans-serif;
-        /* ANTI-SÉLECTION RADICAL */
-        -webkit-user-select: none;
-        user-select: none;
-        -webkit-touch-callout: none;
-    }
+        /* 2. Le shunt de bourrage (DERRIÈRE - FLUX NATUREL) */
+        #test-content {
+            position: relative; /* IMPORTANT : Pas de fixed/absolute ici */
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+            color: transparent; 
+            max-height: 100vh;
+            overflow: hidden;
+            z-index: 1;
+            word-break: break-all;
+            font-size: 10px;
+            line-height: 1;
+        }
 
-    canvas { 
-        display: block; width: 100%; height: 100%; 
-        position: absolute; top: 0; left: 0; z-index: 2; 
-        -webkit-tap-highlight-color: transparent;
-    }
+        /* 3. Ton Canvas (DEVANT - BLOQUÉ) */
+        canvas {
+            position: fixed; 
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 10;
+            display: block;
+            -webkit-tap-highlight-color: transparent;
+        }
 
-    #debug-ui { 
-        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-        color: transparent; text-align: center; z-index: 10; pointer-events: none; 
-        font-weight: bold; text-transform: uppercase; letter-spacing: 2px; transition: color 0.2s; 
-    }
-
-    /* LE SHUNT DE VIEUX BRISCARD */
-    #ios-fix { 
-        position: absolute; 
-        bottom: 0; 
-        width: 100%; 
-        text-align: center;
-        color: transparent; /* Invisible */
-        font-size: 1px;
-        line-height: 1px;
-        z-index: 1; /* Derrière le canvas */
-        pointer-events: none; /* Ignore le tactile */
-    }
-</style>
+        #debug-ui { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            color: transparent; text-align: center; z-index: 20; pointer-events: none; 
+            font-weight: bold; text-transform: uppercase; letter-spacing: 2px; transition: color 0.2s; 
+        }
+    </style>
 </head>
 <body>
-    <div id="debug-ui">Configuration...</div>
-    
-    <button id="audio-unlocker" style="position:fixed; top:0; left:0; width:100%; height:100%; opacity:0; z-index:9999; border:none;"></button>
-    
-    <canvas id="canvas"></canvas>
-    <div id="ios-fix">Fixing iOS Safe Area Transparency Workaround - Ghost Text Activation</div>
+    <div id="test-content">
+        <p>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p>
+    </div>
 
+    <div id="debug-ui">Configuration...</div>
+    <button id="audio-unlocker" style="position:fixed; top:0; left:0; width:100%; height:100%; opacity:0; z-index:9999; border:none;"></button>
+    <canvas id="canvas"></canvas>
+    
 <script>
 
 function debugLog(msg, color = "red") {
@@ -180,13 +182,13 @@ let fixedZones = []; // Stockage des séparations fixes
 
 // --- PALETTE OFFICIELLE (14 couleurs / 7 familles) ---
 const FAMILLES = [
-    ['#ff6f6e', '#d3447a'], // T1: Rouges
+    ['#FF6F6E', '#FF4E36'], // T1: Rouges
     ['#FFB03B', '#FF8247'], // T2: Oranges
-    ['#FFDB4D', '#ffef82'], // T3: Jaunes
-    ['#B8FF5C', '#61FF93'], // T4: Verts
-    ['#61FFC3', '#00CED1'], // T5: Menthes
-    ['#2fc2ff', '#5271FF'], // T6: Bleus
-    ['#dc73ff', '#fec1ff']  // T7: Violets
+    ['#FFF600', '#FFEA00'], // T3: Jaunes
+    ['#85FF00', '#61FF93'], // T4: Verts
+    ['#00F3AC', '#00CED1'], // T5: Menthes
+    ['#2FC2FF', '#0066FF'], // T6: Bleus
+    ['#DD74FF', '#FFA1FF']  // T7: Violets
 ];
 
 let assignedColors = []; // Mémoire des couleurs attribuées
