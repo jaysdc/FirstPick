@@ -27,7 +27,11 @@
 </head>
 <body>
     <div id="debug-ui">Configuration...</div>
+    
+    <button id="audio-unlocker" style="position:fixed; top:0; left:0; width:100%; height:100%; opacity:0; z-index:9999; border:none;"></button>
+    
     <canvas id="canvas"></canvas>
+    <div id="ios-fix"></div>
     <div id="ios-fix"></div>
 
 <script>
@@ -233,16 +237,30 @@ function drawLines() {
     });
 }
 
+const unlocker = document.getElementById('audio-unlocker');
+
+unlocker.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (audioCtx) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const source = audioCtx.createBufferSource();
+        source.buffer = audioCtx.createBuffer(1, 1, 22050);
+        source.connect(audioCtx.destination);
+        source.start(0);
+    }
+    unlocker.remove();
+    const canvasEv = new TouchEvent('touchstart', {
+        cancelable: true, bubbles: true,
+        touches: Array.from(e.touches),
+        targetTouches: Array.from(e.targetTouches),
+        changedTouches: Array.from(e.changedTouches)
+    });
+    canvas.dispatchEvent(canvasEv);
+});
+
 canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
-
-    // --- NOUVEAU : RÉVEIL AUDIO ---
-    if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
-    // ------------------------------
-
-    fixedZones = []; // Reset mémoire : On vide les zones pour forcer le recalcul
+    fixedZones = []; 
     const now = Date.now();
     Array.from(e.changedTouches).forEach(t => {
         touchHistory[t.identifier] = now;
