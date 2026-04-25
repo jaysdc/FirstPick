@@ -7,23 +7,44 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>FirstPick - Fixité</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; touch-action: none; -webkit-user-select: none; position: fixed; font-family: sans-serif; }
-        canvas { display: block; width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 2; }
-        #debug-ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: transparent; text-align: center; z-index: 10; pointer-events: none; font-weight: bold; text-transform: uppercase; letter-spacing: 2px; transition: color 0.2s; }
-        #ios-fix { position: absolute; bottom: 0; height: 1px; width: 100%; pointer-events: none; z-index: 1; }
+    /* Configuration des couleurs système */
+    :root { background-color: #000; }
 
-        canvas { 
-            display: block; 
-            width: 100%; 
-            height: 100%; 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            z-index: 2; 
-            cursor: pointer; /* Indique au navigateur que c'est une zone cliquable */
-            -webkit-tap-highlight-color: transparent; /* Évite le flash gris au toucher sur iPhone */
-        }
-    </style>
+    body, html { 
+        margin: 0; padding: 0; width: 100%; height: 100%; 
+        overflow: hidden; background-color: #000; 
+        touch-action: none; position: fixed; font-family: sans-serif;
+        /* ANTI-SÉLECTION RADICAL */
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+    }
+
+    canvas { 
+        display: block; width: 100%; height: 100%; 
+        position: absolute; top: 0; left: 0; z-index: 2; 
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    #debug-ui { 
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+        color: transparent; text-align: center; z-index: 10; pointer-events: none; 
+        font-weight: bold; text-transform: uppercase; letter-spacing: 2px; transition: color 0.2s; 
+    }
+
+    /* LE SHUNT DE VIEUX BRISCARD */
+    #ios-fix { 
+        position: absolute; 
+        bottom: 0; 
+        width: 100%; 
+        text-align: center;
+        color: transparent; /* Invisible */
+        font-size: 1px;
+        line-height: 1px;
+        z-index: 1; /* Derrière le canvas */
+        pointer-events: none; /* Ignore le tactile */
+    }
+</style>
 </head>
 <body>
     <div id="debug-ui">Configuration...</div>
@@ -31,8 +52,7 @@
     <button id="audio-unlocker" style="position:fixed; top:0; left:0; width:100%; height:100%; opacity:0; z-index:9999; border:none;"></button>
     
     <canvas id="canvas"></canvas>
-    <div id="ios-fix"></div>
-    <div id="ios-fix"></div>
+    <div id="ios-fix">Fixing iOS Safe Area Transparency Workaround - Ghost Text Activation</div>
 
 <script>
 
@@ -543,7 +563,20 @@ function triggerNeonEffect() {
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    document.body.style.backgroundColor = "black";
+    
+    // Si un gagnant est affiché, le body prend sa couleur (pour la Safe Zone)
+    // On applique l'opacité du néon pour que le raccord soit parfait en bas
+    if (winnerId && isNeonFlickering) {
+        const winnerTouch = touches.find(t => t.id === winnerId);
+        if (winnerTouch) {
+            // On convertit l'opacité pour le body
+            document.body.style.backgroundColor = winnerTouch.color;
+            document.body.style.opacity = currentNeonOpacity;
+        }
+    } else {
+        document.body.style.backgroundColor = "black";
+        document.body.style.opacity = "1";
+    }
 
     if (touches.length > 0) {
         const centerX = canvas.width / 2;
