@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>FirstPick - Fixité</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; touch-action: none; -webkit-user-select: none; position: fixed; font-family: sans-serif; }
+        canvas { display: block; width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 2; }
+        #debug-ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: transparent; text-align: center; z-index: 10; pointer-events: none; font-weight: bold; text-transform: uppercase; letter-spacing: 2px; transition: color 0.2s; }
+        #ios-fix { position: absolute; bottom: 0; height: 1px; width: 100%; pointer-events: none; z-index: 1; }
+    </style>
+</head>
+<body>
+    <div id="debug-ui">Configuration...</div>
+    <canvas id="canvas"></canvas>
+    <div id="ios-fix"></div>
+
+<script>
+// --- CONFIGURATION ---
+const TAP_MAX_DURATION = 100;    
+const MULTI_TAP_WINDOW = 100;   
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const ui = document.getElementById('debug-ui');
+
+let config = { mode: 'ÉLU UNIQUE', style: 'BORDURES ON', system: 'ORBITAL' };
+let touches = [];
+let opacity = 0;
+
+let touchHistory = {}; 
+let releaseQueue = []; 
+let masterFingerId = null; 
+let fixedStartAngle = null; // Verrou géométrique
+
+let audioCtx = null;
+let tickBuffer = null;
+
+// Fonction de préchargement
+async function preloadTick() {
+    try {
+        const response = await fetch('tick1.wav');
+        const arrayBuffer = await response.arrayBuffer();
+        // On crée l'AudioContext ici (sera suspendu par défaut sur iOS)
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        tickBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    } catch (e) {
+        console.log("Erreur chargement son:", e);
+    }
+}
+preloadTick();
+
+// Fonction pour jouer le son sans latence
+function playTick() {
+    if (!audioCtx || !tickBuffer) return;
+    
+    // Sécurité iOS : On réactive le contexte s'il est suspendu
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = tickBuffer;
+    source.connect(audioCtx.destination);
+    source.start(0);
+}
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+function handleSettings(count) {
+    if (count === 2) {
+        config.mode = config.mode === 'ÉLU UNIQUE' ? 'ORDRE DU TOUR' : 'ÉLU UNIQUE';
+        showToast(`MODE: ${config.mode}`);
+    } else if (count === 3) {
+        config.system = config.system === 'ORBITAL' ? 'GÉOMÉTRIQUE' : 'ORBITAL';
+        showToast(`SYSTÈME: ${config.system}`);
+    } else if (count === 4) {
+        config.style = config.style === 'BORDURES OFF' ? 'BORDURES ON' : 'BORDURES OFF';
+        showToast(`TRAITS: ${config.style}`);
+    }
+}
+
+function showToast(msg) {
+    ui.innerText = msg;
+    ui.style.color = "rgba(0,0,0,0.5)";
+    clearTimeout(window.toastTimer);
+    window.toastTimer = setTimeout(() => { ui.style.color = "transparent"; }, 1500);
+}
+
+let fixedZones = []; // Stockage des séparations fixes
+
+// --- PALETTE OFFICIELLE (14 couleurs / 7 familles) ---
+const FAMILLES = [
+    ['#ff6f6e', '#d3447a'], // T1: Rouges
+    ['#FFB03B', '#FF8247'], // T2: Oranges
+    ['#FFDB4D', '#ffef82'], // T3: Jaunes
+    ['#B8FF5C', '#61FF93'], // T4: Verts
+    ['#61FFC3', '#00CED1'], // T5: Menthes
+    ['#2fc2ff', '#5271FF'], // T6: Bleus
+    ['#dc73ff', '#fec1ff']  // T7: Violets
+];
+
+let assignedColors = []; // Mémoire des couleurs attribuées
+let touchColorMap = {}; // Dictionnaire ID du doigt -> Couleur
+
+// --- CONFIGURATION ROUE ---
+const SPIN_DELAY = 400;   // Temps d'attente (ms) avant lancement
+let spinTimer = null;      // Compte à rebours de stabilité
+let isSpinning = false;    // État de rotation
+let winnerId = null;       // ID du gagnant final
+let currentActiveId = null; // L'ID du doigt qui brille actuellement
+let wheelOrder = [];        // La suite logique des IDs (sens horaire)
+let spinTimeout = null;    // Timer du mouvement
+
+// --- RÉGLAGES DE LA ROUE (TWEAK ICI) ---
+const ROUE_VITESSE_FIXE = 150;    // Toujours 150ms par saute
+const ROUE_TOURS_MINIMUM = 3;     // Minimum 3 tours complets
+const ROUE_OPACITE_INACTIF = 0.35;
+
+
+
+function drawLines() {
+    if (touches.length < 2 || config.style === 'BORDURES OFF') {
+        fixedZones = [];
+        return;
+    }
+
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const numPlayers = touches.length;
+
+    // RÈGLE 1 : Si le nombre de zones a changé, on RECALCULE TOUT (Le Saut)
+    if (fixedZones.length !== numPlayers) {
+        fixedZones = [];
+        
+        // On trie les touches par angle pour qu'elles se suivent sur le cercle
+        let sortedTouches = [...touches].sort((a, b) => a.angle - b.angle);
+
+        for (let i = 0; i < numPlayers; i++) {
+            let current = sortedTouches[i];
+            let next = sortedTouches[(i + 1) % numPlayers];
+
+            // Calcul de l'angle entre deux doigts
+            let diff = next.angle - current.angle;
+            if (diff < 0) diff += Math.PI * 2;
+
+            // RÈGLE 2 : On place la ligne pile au milieu des deux doigts
+            // Cela garantit que chaque doigt est AU CENTRE de sa zone
+            let bisector = current.angle + diff / 2;
+            fixedZones.push(bisector);
+        }
+    }
+
+    // Dessin des lignes mémorisées
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 12;
+    ctx.lineCap = 'round';
+
+    fixedZones.forEach(angle => {
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        const lineLength = Math.max(canvas.width, canvas.height) * 1.5;
+        ctx.lineTo(
+            centerX + Math.cos(angle) * lineLength,
+            centerY + Math.sin(angle) * lineLength
+        );
+        ctx.stroke();
+    });
+}
+
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+
+    // --- NOUVEAU : RÉVEIL AUDIO ---
+    if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    // ------------------------------
+
+    fixedZones = []; // Reset mémoire : On vide les zones pour forcer le recalcul
+    const now = Date.now();
+    Array.from(e.changedTouches).forEach(t => {
+        touchHistory[t.identifier] = now;
+        if (masterFingerId === null) masterFingerId = t.identifier;
+    });
+    updateTouches(e.touches);
+    resetRoueTimer();
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    fixedZones = []; 
+
+    // On efface la couleur associée aux doigts qui quittent l'écran
+    Array.from(e.changedTouches).forEach(t => {
+        delete touchColorMap[t.identifier];
+    });
+    const releasedArray = Array.from(e.changedTouches);
+    releasedArray.forEach(t => {
+        const duration = now - touchHistory[t.identifier];
+        if (masterFingerId !== null && t.identifier !== masterFingerId && duration < TAP_MAX_DURATION) {
+            releaseQueue.push(now);
+            clearTimeout(window.releaseTimer);
+            window.releaseTimer = setTimeout(() => analyzeReleases(), MULTI_TAP_WINDOW + 10);
+        }
+        if (t.identifier === masterFingerId) {
+            masterFingerId = null;
+            releaseQueue = [];
+            fixedStartAngle = null; 
+        }
+        delete touchHistory[t.identifier];
+    });
+    updateTouches(e.touches);
+    resetRoueTimer();
+});
+
+function analyzeReleases() {
+    if (releaseQueue.length > 0) {
+        const first = releaseQueue[0];
+        const last = releaseQueue[releaseQueue.length - 1];
+        if (last - first < MULTI_TAP_WINDOW) handleSettings(releaseQueue.length);
+        releaseQueue = [];
+    }
+}
+
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    updateTouches(e.touches);
+}, { passive: false });
+
+function updateTouches(touchList) {
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const list = Array.from(touchList);
+
+    // 1. On prépare les objets avec leurs angles
+    let tempTouches = list.map(t => {
+        const angle = Math.atan2(t.clientY - centerY, t.clientX - centerX);
+        return { x: t.clientX, y: t.clientY, id: t.identifier, angle: angle };
+    });
+
+    // 2. Attribution avec verrouillage d'UNICITÉ totale
+    touches = tempTouches.map(t => {
+        // Si le doigt est déjà connu, on ne change rien
+        if (touchColorMap[t.id]) {
+            return { ...t, ...touchColorMap[t.id] };
+        } else {
+            // NOUVEAU DOIGT
+            const activeEntries = Object.values(touchColorMap);
+            // Liste des familles déjà utilisées par les autres doigts présents
+            const famillesPrises = activeEntries.map(c => c.familyIdx);
+            
+            let chosenFamily;
+
+            // Trouver les voisins physiques pour la règle du saut de teinte
+            const sorted = [...tempTouches].filter(ot => touchColorMap[ot.id]).sort((a, b) => a.angle - b.angle);
+            
+            // On met à jour l'ordre global sans trier le tableau principal 
+            // pour ne pas perturber le dessin des zones en cours
+            
+            let famG = null;
+            let famD = null;
+
+            if (sorted.length > 0) {
+                let nextIdx = sorted.findIndex(ot => ot.angle > t.angle);
+                if (nextIdx === -1) nextIdx = 0;
+                let prevIdx = (nextIdx - 1 + sorted.length) % sorted.length;
+                famG = touchColorMap[sorted[prevIdx].id].familyIdx;
+                famD = touchColorMap[sorted[nextIdx].id].familyIdx;
+            }
+
+            // --- FILTRAGE STRICT ---
+            let candidatsValides = [];
+            for (let f = 0; f < 7; f++) {
+                // CONDITION 1 : La famille ne doit PAS être déjà sur l'écran (UNICITÉ)
+                if (famillesPrises.includes(f)) continue;
+
+                // CONDITION 2 : Saut de teinte avec le voisin de GAUCHE
+                if (famG !== null) {
+                    let distG = Math.min(Math.abs(f - famG), 7 - Math.abs(f - famG));
+                    if (distG <= 1) continue;
+                }
+
+                // CONDITION 3 : Saut de teinte avec le voisin de DROITE
+                if (famD !== null) {
+                    let distD = Math.min(Math.abs(f - famD), 7 - Math.abs(f - famD));
+                    if (distD <= 1) continue;
+                }
+
+                candidatsValides.push(f);
+            }
+
+            // Si on a des candidats qui respectent tout, on prend le plus "loin" (anticipation)
+            if (candidatsValides.length > 0) {
+                let bestScore = -1;
+                let finalPool = [];
+                candidatsValides.forEach(f => {
+                    let score = 99; 
+                    if (famG !== null) score = Math.min(score, Math.min(Math.abs(f - famG), 7 - Math.abs(f - famG)));
+                    if (famD !== null) score = Math.min(score, Math.min(Math.abs(f - famD), 7 - Math.abs(f - famD)));
+                    
+                    if (score > bestScore) {
+                        bestScore = score;
+                        finalPool = [f];
+                    } else if (score === bestScore) {
+                        finalPool.push(f);
+                    }
+                });
+                chosenFamily = finalPool[Math.floor(Math.random() * finalPool.length)];
+            } else {
+                // Cas de secours : on prend n'importe quelle famille pas encore utilisée
+                for (let f = 0; f < 7; f++) {
+                    if (!famillesPrises.includes(f)) {
+                        chosenFamily = f;
+                        break;
+                    }
+                }
+            }
+
+            const variantIdx = Math.floor(Math.random() * 2);
+            const colorData = { color: FAMILLES[chosenFamily][variantIdx], familyIdx: chosenFamily };
+            touchColorMap[t.id] = colorData;
+            return { ...t, ...colorData };
+        }
+    });
+
+}
+
+function resetRoueTimer() {
+    clearTimeout(spinTimer);
+    clearTimeout(spinTimeout);
+    isSpinning = false;
+    winnerId = null;
+
+    if (touches.length >= 2) {
+        spinTimer = setTimeout(() => {
+            if (touches.length >= 2 && !isSpinning) startFortuneWheel();
+        }, SPIN_DELAY);
+    }
+}
+
+function startFortuneWheel() {
+    if (touches.length < 2) return;
+
+    // 1. Séquence géographique
+    let sorted = [...touches].sort((a, b) => a.angle - b.angle);
+    wheelOrder = sorted.map(t => t.id);
+
+    // 2. Position de départ
+    let currentIndex = wheelOrder.indexOf(masterFingerId);
+    if (currentIndex === -1) currentIndex = 0;
+    currentActiveId = wheelOrder[currentIndex];
+
+    isSpinning = true;
+    winnerId = null;
+
+    // 3. Calcul de la distance (Sauts)
+    // Distance = (Nombre de doigts * 3 tours) + un rabiot aléatoire pour le suspense
+    let totalSteps = (wheelOrder.length * ROUE_TOURS_MINIMUM) + Math.floor(Math.random() * wheelOrder.length * 2);
+    let currentStep = 0;
+
+    function tick() {
+        if (touches.length < 2 || !isSpinning) return;
+
+        currentIndex = (currentIndex + 1) % wheelOrder.length;
+        currentActiveId = wheelOrder[currentIndex];
+
+        playTick(); // <--- APPEL DU SON ICI
+        
+        currentStep++;
+
+        if (currentStep < totalSteps) {
+            // Toujours 150ms, pas de changement de vitesse
+            spinTimeout = setTimeout(tick, ROUE_VITESSE_FIXE);
+        } else {
+            // ARRÊT NET
+            winnerId = currentActiveId;
+            isSpinning = false;
+        }
+    }
+    tick();
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    document.body.style.backgroundColor = "black";
+
+    if (touches.length > 0) {
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const baseRadius = Math.max(canvas.width, canvas.height) * 1.5;
+
+        if (touches.length === 1) {
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.globalAlpha = 1.0;
+            ctx.fillStyle = touches[0].color;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        } 
+        else if (touches.length >= 2) {
+            drawLines();
+            let sortedSeps = [...fixedZones].sort((a, b) => a - b);
+
+            for (let i = 0; i < sortedSeps.length; i++) {
+                let start = sortedSeps[i];
+                let end = sortedSeps[(i + 1) % sortedSeps.length];
+                let mid = start + ((end < start ? end + Math.PI * 2 : end) - start) / 2;
+                let normMid = Math.atan2(Math.sin(mid), Math.cos(mid));
+
+                let closestTouch = touches.reduce((p, c) => {
+                    return Math.abs(Math.atan2(Math.sin(p.angle - normMid), Math.cos(p.angle - normMid))) < 
+                           Math.abs(Math.atan2(Math.sin(c.angle - normMid), Math.cos(c.angle - normMid))) ? p : c;
+                });
+
+                let isCurrentActive = (isSpinning && closestTouch.id === currentActiveId);
+                let isWinner = (winnerId === closestTouch.id);
+                
+                // Rayon fixe, aucune animation de pulsation
+                let visualRadius = baseRadius;
+
+                // --- DESSIN ---
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, visualRadius, start, end < start ? end + Math.PI * 2 : end);
+
+                if (isCurrentActive || isWinner) {
+                    ctx.globalAlpha = 1.0;
+                    ctx.fillStyle = closestTouch.color;
+                } else {
+                    ctx.globalAlpha = 1.0;
+                    ctx.fillStyle = "white";
+                    ctx.fill();
+                    ctx.globalAlpha = (isSpinning || winnerId) ? ROUE_OPACITE_INACTIF : 1.0;
+                    ctx.fillStyle = closestTouch.color;
+                }
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+            drawLines();
+        }
+    }
+    requestAnimationFrame(draw);
+}
+draw();
+</script>
+</body>
+</html>
