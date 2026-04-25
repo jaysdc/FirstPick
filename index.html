@@ -2,8 +2,15 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Debug Audio</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SoundTest">
+    
+    <link rel="manifest" href="manifest.json">
+
+    <title>Debug Audio PWA</title>
     <style>
         body { 
             margin: 0; 
@@ -15,6 +22,7 @@
             background: #111; 
             color: white;
             font-family: sans-serif;
+            -webkit-user-select: none;
         }
         button { 
             padding: 50px; 
@@ -25,59 +33,62 @@
             border: none;
             border-radius: 20px;
             cursor: pointer;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+        button:active {
+            background: #0051a8;
+            transform: scale(0.98);
         }
         #status {
-            margin-top: 20px;
+            margin-top: 30px;
             padding: 10px;
             text-align: center;
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
 
-    <button id="btn">TAP POUR TESTER LE SON</button>
-    <div id="status">Statut : En attente...</div>
+    <button id="btn">TESTER LE SON</button>
+    <div id="status">Initialisation...</div>
 
 <script>
+    // Enregistrement du Service Worker (nécessaire pour PWA)
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+
     const btn = document.getElementById('btn');
     const status = document.getElementById('status');
     let audioCtx = null;
     let tickBuffer = null;
 
-    // 1. Préchargement immédiat
     async function init() {
-        status.innerText = "Chargement du fichier...";
+        status.innerText = "Chargement tick1.wav...";
         try {
             const response = await fetch('tick1.wav');
-            if (!response.ok) throw new Error("Fichier tick1.wav introuvable (404)");
+            if (!response.ok) throw new Error("Fichier introuvable");
             
             const arrayBuffer = await response.arrayBuffer();
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             tickBuffer = await audioCtx.decodeAudioData(arrayBuffer);
             
-            status.innerHTML = "<span style='color:green'>SON PRÊT ET DÉCODÉ</span>";
+            status.innerHTML = "<span style='color:green'>PRÊT (App Standalone)</span>";
         } catch (e) {
             status.innerHTML = "<span style='color:red'>ERREUR : " + e.message + "</span>";
         }
     }
 
-    // 2. Lecture au clic
     btn.addEventListener('click', () => {
-        if (!audioCtx || !tickBuffer) {
-            status.innerText = "Erreur : Son non chargé";
-            return;
-        }
-
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
+        if (!audioCtx || !tickBuffer) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
 
         const source = audioCtx.createBufferSource();
         source.buffer = tickBuffer;
         source.connect(audioCtx.destination);
         source.start(0);
         
-        status.innerText = "Lecture déclenchée à " + new Date().toLocaleTimeString();
+        status.innerText = "Clic à " + new Date().toLocaleTimeString();
     });
 
     init();
