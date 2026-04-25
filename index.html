@@ -22,10 +22,12 @@
 
 function debugLog(msg, color = "red") {
     const div = document.createElement('div');
-    div.style = `position:fixed; top:10px; left:10px; z-index:9999; background:${color}; color:white; padding:5px; font-size:12px; margin-bottom:2px; pointer-events:none;`;
+    // Centrage absolu au milieu de l'écran
+    div.style = `position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); z-index:9999; background:${color}; color:white; padding:15px; font-size:18px; font-weight:bold; text-align:center; border:2px solid white; pointer-events:none; min-width:200px;`;
     div.innerText = msg;
     document.body.appendChild(div);
-    setTimeout(() => div.remove(), 5000); // Disparaît après 5s
+    // On le laisse 2 secondes pour avoir le temps de lire
+    setTimeout(() => div.remove(), 2000); 
 }
 
 // --- CONFIGURATION ---
@@ -392,21 +394,20 @@ function startFortuneWheel() {
 
         currentIndex = (currentIndex + 1) % wheelOrder.length;
         currentActiveId = wheelOrder[currentIndex];
-
-        playTick(); // <--- APPEL DU SON ICI
+        
+        // --- TEST VISUEL DU TIC ---
+        debugLog("TIC Audio !", "blue"); 
+        playTick(); 
 
         currentStep++;
-
         if (currentStep < totalSteps) {
-            // Toujours 150ms, pas de changement de vitesse
             spinTimeout = setTimeout(tick, ROUE_VITESSE_FIXE);
         } else {
-            // ARRÊT NET
             winnerId = currentActiveId;
             isSpinning = false;
+            debugLog("FIN - GAGNANT", "green");
         }
     }
-    tick();
 }
 
 function draw() {
