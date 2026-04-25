@@ -3,14 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="SoundTest">
-    
     <link rel="manifest" href="manifest.json">
-
-    <title>Debug Audio PWA</title>
+    <title>Debug Audio Loop</title>
     <style>
         body { 
             margin: 0; 
@@ -23,63 +19,55 @@
             color: white;
             font-family: sans-serif;
             -webkit-user-select: none;
+            gap: 20px;
         }
         button { 
-            padding: 50px; 
-            font-size: 24px; 
+            width: 80%;
+            padding: 30px; 
+            font-size: 18px; 
             font-weight: bold;
-            background: #007AFF;
             color: white;
             border: none;
-            border-radius: 20px;
+            border-radius: 15px;
             cursor: pointer;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            text-transform: uppercase;
         }
-        button:active {
-            background: #0051a8;
-            transform: scale(0.98);
-        }
-        #status {
-            margin-top: 30px;
-            padding: 10px;
-            text-align: center;
-            font-size: 14px;
-        }
+        #btn-simple { background: #007AFF; }
+        #btn-loop { background: #FF3B30; }
+        
+        button:active { opacity: 0.8; transform: scale(0.98); }
+        #status { font-size: 14px; text-align: center; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-    <button id="btn">TESTER LE SON</button>
-    <div id="status">Initialisation...</div>
+    <button id="btn-simple">Clic Unique</button>
+    <button id="btn-loop">Appui Long (Boucle 200ms)</button>
+    
+    <div id="status">Chargement...</div>
 
 <script>
-    // Enregistrement du Service Worker (nécessaire pour PWA)
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
-    }
-
-    const btn = document.getElementById('btn');
+    const btnSimple = document.getElementById('btn-simple');
+    const btnLoop = document.getElementById('btn-loop');
     const status = document.getElementById('status');
+    
     let audioCtx = null;
     let tickBuffer = null;
+    let loopTimer = null;
 
     async function init() {
-        status.innerText = "Chargement tick1.wav...";
         try {
             const response = await fetch('tick1.wav');
-            if (!response.ok) throw new Error("Fichier introuvable");
-            
             const arrayBuffer = await response.arrayBuffer();
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             tickBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-            
-            status.innerHTML = "<span style='color:green'>PRÊT (App Standalone)</span>";
+            status.innerHTML = "<span style='color:green'>SON PRÊT</span>";
         } catch (e) {
             status.innerHTML = "<span style='color:red'>ERREUR : " + e.message + "</span>";
         }
     }
 
-    btn.addEventListener('click', () => {
+    function playTick() {
         if (!audioCtx || !tickBuffer) return;
         if (audioCtx.state === 'suspended') audioCtx.resume();
 
@@ -87,8 +75,33 @@
         source.buffer = tickBuffer;
         source.connect(audioCtx.destination);
         source.start(0);
+    }
+
+    // BOUTON SIMPLE
+    btnSimple.addEventListener('click', playTick);
+
+    // BOUTON BOUCLE (Gestion Mobile)
+    btnLoop.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        playTick(); // Premier son immédiat
         
-        status.innerText = "Clic à " + new Date().toLocaleTimeString();
+        // Lancement de la boucle
+        clearInterval(loopTimer);
+        loopTimer = setInterval(playTick, 200);
+        
+        status.innerText = "BOUCLE EN COURS...";
+        btnLoop.style.background = "#8B0000";
+    });
+
+    btnLoop.addEventListener('touchend', () => {
+        clearInterval(loopTimer);
+        status.innerText = "BOUCLE ARRÊTÉE";
+        btnLoop.style.background = "#FF3B30";
+    });
+
+    // Sécurité si le doigt sort du bouton
+    btnLoop.addEventListener('touchcancel', () => {
+        clearInterval(loopTimer);
     });
 
     init();
