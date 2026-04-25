@@ -182,9 +182,29 @@ let wheelOrder = [];        // La suite logique des IDs (sens horaire)
 let spinTimeout = null;    // Timer du mouvement
 
 // --- RÉGLAGES DE LA ROUE (TWEAK ICI) ---
-const ROUE_VITESSE_FIXE = 150;    // Toujours 150ms par saute
-const ROUE_TOURS_MINIMUM = 3;     // Minimum 3 tours complets
+const ROUE_VITESSE_FIXE = 125;      
+const ROUE_TICKS_MINIMUM = 20;      
+const ROUE_PALIER_FREINAGE = 15;    // X : quand on commence à ralentir
+const ROUE_RALENTI_MIN = 1.1;       // Multiplicateur min
+const ROUE_RALENTI_MAX = 1.3;       // Multiplicateur max
 const ROUE_OPACITE_INACTIF = 0.35;
+
+// --- RÉGLAGES DU FINAL (SUSPENSE) ---
+const ROUE_CHANCE_REUSSITE = 70;    // % de chance de passer le dernier picot
+const ROUE_REBOND_MIN = 200;        // Silence court (ms)
+const ROUE_REBOND_MAX = 1200;       // Silence long (ms)
+
+// --- RÉGLAGES DU NÉON (PATTERN) ---
+// Structure : [durée du flash, opacité du flash]
+// L'opacité va de 0.2 (sombre) à 1.0 (brillant)
+const NEON_PATTERN = [
+    [30, 0.5],   // Petit flash rapide et faible
+    [80, 1.0],   // Flash plus long et intense
+    [40, 0.4],   // Micro-sursaut faible
+    [250, 1.0]   // Dernier flash long avant le fixe
+]; 
+let isNeonFlickering = false;
+let currentNeonOpacity = 1.0; // On stocke l'intensité actuelle ici
 
 
 
@@ -425,22 +445,27 @@ function resetRoueTimer() {
 function startFortuneWheel() {
     if (touches.length < 2) return;
 
-    // 1. Séquence géographique
     let sorted = [...touches].sort((a, b) => a.angle - b.angle);
     wheelOrder = sorted.map(t => t.id);
 
-    // 2. Position de départ
     let currentIndex = wheelOrder.indexOf(masterFingerId);
     if (currentIndex === -1) currentIndex = 0;
     currentActiveId = wheelOrder[currentIndex];
 
     isSpinning = true;
     winnerId = null;
+    isNeonFlickering = false;
 
-    // 3. Calcul de la distance (Sauts)
-    // Distance = (Nombre de doigts * 3 tours) + un rabiot aléatoire pour le suspense
-    let totalSteps = (wheelOrder.length * ROUE_TOURS_MINIMUM) + Math.floor(Math.random() * wheelOrder.length * 2);
+    // --- DÉTERMINATION DU DESTIN ---
+    const totalStepsBase = ROUE_TICKS_MINIMUM + Math.floor(Math.random() * (wheelOrder.length + 1));
+    const vaReussirDernier = (Math.random() * 100) <= ROUE_CHANCE_REUSSITE;
+    const multiplicateurFixe = Math.random() * (ROUE_RALENTI_MAX - ROUE_RALENTI_MIN) + ROUE_RALENTI_MIN;
+    
+    // Si échec, on s'arrête un pas avant le dernier TIC
+    const totalSteps = vaReussirDernier ? totalStepsBase : totalStepsBase - 1;
+    
     let currentStep = 0;
+    let currentInterval = ROUE_VITESSE_FIXE;
 
     function tick() {
         if (touches.length < 2 || !isSpinning) return;
@@ -448,20 +473,72 @@ function startFortuneWheel() {
         currentIndex = (currentIndex + 1) % wheelOrder.length;
         currentActiveId = wheelOrder[currentIndex];
         
-        // --- TEST VISUEL DU TIC ---
-        debugLog("TIC Audio !", "blue"); 
         playTick(); 
 
         currentStep++;
+        
+        // Gestion du ralentissement progressif
+        if (currentStep >= ROUE_PALIER_FREINAGE) {
+            currentInterval *= multiplicateurFixe;
+        }
+
         if (currentStep < totalSteps) {
-            spinTimeout = setTimeout(tick, ROUE_VITESSE_FIXE);
+            spinTimeout = setTimeout(tick, currentInterval);
         } else {
-            winnerId = currentActiveId;
-            isSpinning = false;
-            debugLog("FIN - GAGNANT", "green");
+            // C'est la fin du mouvement "moteur"
+            handleFinalSequence(vaReussirDernier, currentActiveId);
         }
     }
     tick();
+}
+
+function handleFinalSequence(succes, finalId) {
+    if (succes) {
+        // SCÉNARIO A : Réussite nette
+        winnerId = finalId;
+        isSpinning = false;
+        triggerNeonEffect();
+    } else {
+        // SCÉNARIO B : Rebond / Échec (le suspense de silence)
+        const delaiRebond = Math.random() * (ROUE_REBOND_MAX - ROUE_REBOND_MIN) + ROUE_REBOND_MIN;
+        
+        setTimeout(() => {
+            winnerId = finalId;
+            isSpinning = false;
+            triggerNeonEffect();
+        }, delaiRebond);
+    }
+}
+
+function triggerNeonEffect() {
+    if (config.mode !== 'ÉLU UNIQUE') return;
+    
+    isNeonFlickering = true;
+    let patternIdx = 0;
+
+    function runPattern() {
+        if (patternIdx >= NEON_PATTERN.length) {
+            currentNeonOpacity = 1.0; // Fixe à la fin
+            return;
+        }
+
+        const [duree, opacite] = NEON_PATTERN[patternIdx];
+
+        // 1. PHASE ALLUMÉE (avec l'intensité choisie)
+        currentNeonOpacity = opacite;
+        
+        setTimeout(() => {
+            // 2. PHASE ÉTEINTE (on retombe à 0.2)
+            currentNeonOpacity = 0.2;
+            
+            setTimeout(() => {
+                patternIdx++;
+                runPattern();
+            }, duree); // On utilise la même durée pour le temps "éteint"
+            
+        }, duree);
+    }
+    runPattern();
 }
 
 function draw() {
@@ -507,7 +584,12 @@ function draw() {
                 ctx.arc(centerX, centerY, visualRadius, start, end < start ? end + Math.PI * 2 : end);
 
                 if (isCurrentActive || isWinner) {
-                    ctx.globalAlpha = 1.0;
+                    // On utilise maintenant l'intensité précise du pattern [durée, opacité]
+                    if (isWinner && isNeonFlickering) {
+                        ctx.globalAlpha = currentNeonOpacity;
+                    } else {
+                        ctx.globalAlpha = 1.0;
+                    }
                     ctx.fillStyle = closestTouch.color;
                 } else {
                     ctx.globalAlpha = 1.0;
