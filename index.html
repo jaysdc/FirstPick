@@ -19,6 +19,15 @@
     <div id="ios-fix"></div>
 
 <script>
+
+function debugLog(msg, color = "red") {
+    const div = document.createElement('div');
+    div.style = `position:fixed; top:10px; left:10px; z-index:9999; background:${color}; color:white; padding:5px; font-size:12px; margin-bottom:2px; pointer-events:none;`;
+    div.innerText = msg;
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 5000); // Disparaît après 5s
+}
+
 // --- CONFIGURATION ---
 const TAP_MAX_DURATION = 100;    
 const MULTI_TAP_WINDOW = 100;   
@@ -41,31 +50,42 @@ let tickBuffer = null;
 
 // Fonction de préchargement
 async function preloadTick() {
+    debugLog("Tentative chargement tick1.wav...", "orange");
     try {
         const response = await fetch('tick1.wav');
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
         const arrayBuffer = await response.arrayBuffer();
-        // On crée l'AudioContext ici (sera suspendu par défaut sur iOS)
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        debugLog("Fichier reçu, décodage en cours...", "orange");
         tickBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        
+        debugLog("SON PRÊT ET DÉCODÉ", "green");
     } catch (e) {
-        console.log("Erreur chargement son:", e);
+        debugLog("ERREUR CHARGEMENT: " + e.message);
+        console.error(e);
     }
 }
 preloadTick();
 
 // Fonction pour jouer le son sans latence
 function playTick() {
-    if (!audioCtx || !tickBuffer) return;
+    if (!audioCtx) { debugLog("AudioCtx inexistant"); return; }
+    if (!tickBuffer) { debugLog("Buffer vide"); return; }
     
-    // Sécurité iOS : On réactive le contexte s'il est suspendu
     if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
+        audioCtx.resume().then(() => debugLog("Context réactivé", "blue"));
     }
 
-    const source = audioCtx.createBufferSource();
-    source.buffer = tickBuffer;
-    source.connect(audioCtx.destination);
-    source.start(0);
+    try {
+        const source = audioCtx.createBufferSource();
+        source.buffer = tickBuffer;
+        source.connect(audioCtx.destination);
+        source.start(0);
+    } catch (e) {
+        debugLog("Erreur lecture: " + e.message);
+    }
 }
 
 function resize() {
@@ -374,7 +394,7 @@ function startFortuneWheel() {
         currentActiveId = wheelOrder[currentIndex];
 
         playTick(); // <--- APPEL DU SON ICI
-        
+
         currentStep++;
 
         if (currentStep < totalSteps) {
