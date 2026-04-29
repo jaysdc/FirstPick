@@ -270,8 +270,8 @@ const FEEDBACK_PREVIEW_PARAMETRE_DOT_SIZE = 6;  // Taille du rayon des points (e
 
 const splash = document.getElementById('splash-screen');
 const splashBtn = document.getElementById('splash-btn-img');
-const imgOn = new Image(); imgOn.src = "Bouton_Accueil_ON.png";
-const imgDemi = new Image(); imgDemi.src = "Bouton_Accueil_DEMI.png";
+const imgOn = new Image(); imgOn.src = "Bouton_Accueil_DEMI.png";
+const imgDemi = new Image(); imgDemi.src = "Bouton_Accueil_ON.png";
 let hasStarted = false;
 
 const canvas = document.getElementById('canvas');
@@ -286,27 +286,25 @@ let releaseQueue = [];
 let masterFingerId = null; 
 let fixedStartAngle = null;
 let audioCtx = null;
-let tickBuffer = null;
+let soundLibrary = {}; // Notre Jukebox de sons
 
-// Fonction de préchargement
-async function preloadTick() {
-    debugLog("Tentative chargement tick1.wav...", "orange");
+// Le chargeur universel (on lui donne un nom de fichier, il le met en mémoire)
+async function loadSfx(filename) {
     try {
-        const response = await fetch('tick1.wav');
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
+        const response = await fetch(filename);
         const arrayBuffer = await response.arrayBuffer();
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        debugLog("Fichier reçu, décodage en cours...", "orange");
-        tickBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-        
-        debugLog("SON PRÊT ET DÉCODÉ", "green");
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const buffer = await audioCtx.decodeAudioData(arrayBuffer);
+        soundLibrary[filename] = buffer;
+        debugLog("SON PRÊT : " + filename, "green");
     } catch (e) {
-        debugLog("ERREUR CHARGEMENT: " + e.message);
-        console.error(e);
+        debugLog("ERREUR CHARGEMENT : " + filename);
     }
 }
+
+// On charge ton son de base au démarrage
+loadSfx('tick1.wav');
+loadSfx('bouton1.wav');
 preloadTick();
 
 // Cette fonction ne s'exécutera qu'UNE FOIS au tout premier clic/relâchement
@@ -332,22 +330,23 @@ function forceAudioUnlock() {
 window.addEventListener('click', forceAudioUnlock);
 window.addEventListener('touchend', forceAudioUnlock);
 
-// Fonction pour jouer le son sans latence
-function playTick() {
-    if (!audioCtx) { debugLog("AudioCtx inexistant"); return; }
-    if (!tickBuffer) { debugLog("Buffer vide"); return; }
+// Fonction pour jouer un son sans latence
+function playTick(filename = 'tick1.wav') {
+    if (!audioCtx) return;
+    const buffer = soundLibrary[filename];
+    if (!buffer) return; // Si le son n'est pas encore chargé, on ne fait rien
     
     if (audioCtx.state === 'suspended') {
-        audioCtx.resume().then(() => debugLog("Context réactivé", "blue"));
+        audioCtx.resume();
     }
 
     try {
         const source = audioCtx.createBufferSource();
-        source.buffer = tickBuffer;
+        source.buffer = buffer;
         source.connect(audioCtx.destination);
         source.start(0);
     } catch (e) {
-        debugLog("Erreur lecture: " + e.message);
+        debugLog("Erreur lecture " + filename + " : " + e.message);
     }
 }
 
@@ -445,13 +444,19 @@ function showToast(msg) {
 }
 
 
-// ACTION QUAND ON APPUIE (IMAGE ENFONCÉE)
+// ACTION QUAND ON APPUIE
 splashBtn.addEventListener('touchstart', (e) => {
     if (hasStarted) return;
     e.preventDefault();
-    splashBtn.src = "Bouton_Accueil_ON.png";
+    
+    // On garde ton réglage d'image
+    splashBtn.src = "Bouton_Accueil_DEMI.png"; 
+    
     if (audioCtx) {
         if (audioCtx.state === 'suspended') audioCtx.resume();
+        playTick('bouton1.wav'); // <--- CLIC 1
+        
+        // Sécurité pour déverrouiller le canal audio
         const source = audioCtx.createBufferSource();
         source.buffer = audioCtx.createBuffer(1, 1, 22050);
         source.connect(audioCtx.destination);
@@ -459,11 +464,15 @@ splashBtn.addEventListener('touchstart', (e) => {
     }
 }, { passive: false });
 
-// ACTION QUAND ON RELÂCHE (IMAGE ENCLENCHÉE + DÉPART)
+// ACTION QUAND ON RELÂCHE
 splashBtn.addEventListener('touchend', (e) => {
     if (hasStarted) return;
     hasStarted = true;
-    splashBtn.src = "Bouton_Accueil_DEMI.png";
+    
+    // On garde ton réglage d'image
+    splashBtn.src = "Bouton_Accueil_ON.png";
+    playTick('bouton1.wav'); // <--- CLIC 2
+
     setTimeout(() => {
         splash.classList.add('splash-exit');
         setTimeout(() => {
