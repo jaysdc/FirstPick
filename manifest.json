@@ -1,21 +1,21 @@
 {
-  "short_name": "SoundTest",
-  "name": "Debug Audio PWA",
+  "short_name": "First Pick",
+  "name": "First Pick",
   "icons": [
     {
-      "src": "https://via.placeholder.com/192",
+      "src": "icon-512.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "https://via.placeholder.com/512",
+      "src": "icon-512.png",
       "type": "image/png",
       "sizes": "512x512"
     }
   ],
-  "start_url": "test.html",
-  "background_color": "#111111",
+  "start_url": "index.html",
+  "background_color": "#000000",
   "display": "standalone",
   "scope": "./",
-  "theme_color": "#007AFF"
+  "theme_color": "#000000"
 }

@@ -5,62 +5,221 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>FirstPick - Fixité</title>
+    <title>First Pick</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="icon-512.png">
+    <link rel="manifest" href="manifest.json">
     <style>
-        body, html { 
-            margin: 0; padding: 0; width: 100%; height: 100%; 
-            overflow: hidden; background-color: #000; 
-            touch-action: none; -webkit-user-select: none; 
-            position: fixed; font-family: sans-serif; 
-        }
-        canvas { 
-            display: block; width: 100%; height: 100%; 
-            position: absolute; top: 0; left: 0; z-index: 2; 
-            -webkit-tap-highlight-color: transparent;
-        }
-        #debug-ui { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            color: transparent; text-align: center; z-index: 10; pointer-events: none; 
-            font-weight: bold; text-transform: uppercase; letter-spacing: 2px; transition: color 0.2s; 
-        }
-    </style>
+    /* Configuration des couleurs système */
+    :root { background-color: #000; }
+
+    body, html { 
+        margin: 0; padding: 0; width: 100%; height: 100%; 
+        overflow: hidden; background-color: #000; 
+        touch-action: none; position: fixed; font-family: sans-serif;
+        /* ANTI-SÉLECTION RADICAL */
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+    }
+
+    canvas { 
+        display: block; width: 100%; height: 100%; 
+        position: absolute; top: 0; left: 0; z-index: 2; 
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    #debug-ui { 
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+        color: transparent; /* Reste invisible par défaut */
+        text-align: center; z-index: 10; pointer-events: none; 
+        font-weight: bold; text-transform: uppercase; letter-spacing: 2px; 
+        transition: color 0.2s; 
+        font-size: 24px; /* Un peu plus grand pour bien voir le changement */
+    } 
+
+    /* LE SHUNT DE VIEUX BRISCARD */
+    #ios-fix { 
+        position: absolute; 
+        bottom: 0; 
+        width: 100%; 
+        text-align: center;
+        color: transparent; /* Invisible */
+        font-size: 1px;
+        line-height: 1px;
+        z-index: 1; /* Derrière le canvas */
+        pointer-events: none; /* Ignore le tactile */
+    }
+</style>
 </head>
 <body>
     <div id="debug-ui">Configuration...</div>
     
-    <button id="audio-unlocker" style="position:fixed; top:0; left:0; width:100%; height:100%; opacity:0; z-index:9999; border:none;"></button>
-    
     <canvas id="canvas"></canvas>
+    <div id="ios-fix">Fixing iOS Safe Area Transparency Workaround - Ghost Text Activation</div>
 
 <script>
 
 function debugLog(msg, color = "red") {
-    const div = document.createElement('div');
-    // Centrage absolu au milieu de l'écran
-    div.style = `position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); z-index:9999; background:${color}; color:white; padding:15px; font-size:18px; font-weight:bold; text-align:center; border:2px solid white; pointer-events:none; min-width:200px;`;
-    div.innerText = msg;
-    document.body.appendChild(div);
-    // On le laisse 2 secondes pour avoir le temps de lire
-    setTimeout(() => div.remove(), 2000); 
+    // Silence total : on ne crée plus d'élément visuel
+    console.log(msg); 
+}
+
+// --- UTILITAIRE DE MÉLANGE (POUR LE RENDU OPAQUE) ---
+function getBakedColor(hex, alpha) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    // Formule : Couleur * alpha + Noir (0) * (1 - alpha)
+    const br = Math.round(r * alpha + 0 * (1 - alpha));
+    const bg = Math.round(g * alpha + 0 * (1 - alpha));
+    const bb = Math.round(b * alpha + 0 * (1 - alpha));
+    return `rgb(${br}, ${bg}, ${bb})`;
+}
+
+// --- UTILITAIRE DE MÉLANGE POUR LE CYCLE (MODE 1 DOIGT) ---
+function mixColors(color1, color2, weight) {
+    const r1 = parseInt(color1.slice(1, 3), 16);
+    const g1 = parseInt(color1.slice(3, 5), 16);
+    const b1 = parseInt(color1.slice(5, 7), 16);
+    const r2 = parseInt(color2.slice(1, 3), 16);
+    const g2 = parseInt(color2.slice(3, 5), 16);
+    const b2 = parseInt(color2.slice(5, 7), 16);
+    const r = Math.round(r1 * (1 - weight) + r2 * weight);
+    const g = Math.round(g1 * (1 - weight) + g2 * weight);
+    const b = Math.round(b1 * (1 - weight) + b2 * weight);
+    return `rgb(${r}, ${g}, ${b})`;
 }
 
 // --- CONFIGURATION ---
-const TAP_MAX_DURATION = 100;    
-const MULTI_TAP_WINDOW = 100;   
+const TAP_MAX_DURATION = 150;    
+const MULTI_TAP_WINDOW = 150;
+
+// --- VARIABLE POUR CHANGER L'OPACITE DE TOUT L'ECRAN POUR AVOIR DES FADE
+let globalFadeOpacity = 1.0; // 1.0 = visible, 0.0 = invisible
+
+// --- VARIABLES DE MAINTIEN (TEMPS D'ATTENTE APRÈS LA FIN DES ANIMATIONS QUAND ON CHANGE UN PARAMETRE)
+const DUREE_MAINTIEN_PREVIEW_PARAMETRE_ELU = 0.3; // Temps après le dernier flash (en secondes)
+const DUREE_MAINTIEN_PREVIEW_PARAMETRE_ORDRE = 0.3; // Temps après l'allumage de la dernière zone (en secondes)
+const DUREE_MAINTIEN_PREVIEW_PARAMETRE_TRAITS = 0.3; // Temps après que les traits soient sortis (en secondes)
+const DUREE_MAINTIEN_PREVIEW_PARAMETRE_DOTS = 1.0;
+
+// --- SYSTÈME DE RÉSULTAT (3 PHASES) ---
+const DUREE_POSE_ELU = 1.0;       // Phase 2 : Maintien (secondes)
+const DUREE_POSE_ORDRE = 2.0;     // Phase 2 : Maintien (secondes)
+const DUREE_FADE_ZONES_ELU = 0.3; // Phase 3 : Fondu (secondes)
+const DUREE_FADE_ZONES_ORDRE = 0.3; // Phase 3 : Fondu (secondes)
+
+window.resultZonesOpacity = 1.0; // Contrôle interne du fondu des zones
+
+// --- VARIABLE POUR LA DUREE DE LA DISPARITION DU FEEDBACK VISUEL LORS DU CHANGEMENT DE PARAMETRES
+const FEEDBACK_FADE_OUT_DURATION_PARAMETER_CHANGE = 0.2; // Temps de disparition en secondes
+
+// --- VARIABLE POUR LA DUREE Du FADE OUT APRES L'ISSUE DU CYCLE DE LA ROUE
+const RESOLUTION_FADE_MS = 300; // Durée de la disparition du gagnant (en millisecondes)
+const LOSER_FADE_DURATION_MS = 825; // Durée du fondu des perdants (en millisecondes) - À TWEAKER ICI
+const ORDRE_FADE_IN_MS = 400; // <-- TON NOUVEAU RÉGLAGE : Durée du rallumage en Mode Ordre (en ms)
+
+// --- CONFIGURATION ROUE ---
+const SPIN_DELAY = 600;   // Temps d'attente (ms) avant lancement
+let spinTimer = null;      // Compte à rebours de stabilité
+let isSpinning = false;    // État de rotation
+let winnerId = null;       // ID du gagnant final
+let currentActiveId = null; // L'ID du doigt qui brille actuellement
+let wheelOrder = [];        // La suite logique des IDs (sens horaire)
+let spinTimeout = null;    // Timer du mouvement
+
+// --- RÉGLAGES DE LA ROUE (TWEAK ICI) ---
+const ROUE_VITESSE_FIXE = 125;      
+const ROUE_TICKS_MINIMUM = 20;      
+const ROUE_PALIER_FREINAGE = 15;    // X : quand on commence à ralentir
+const ROUE_RALENTI_MIN = 1.1;       // Multiplicateur min
+const ROUE_RALENTI_MAX = 1.3;       // Multiplicateur max
+const ROUE_OPACITE_INACTIF = 0.35;
+const ROUE_RESET_DELAY = 0; // <--- TA VARIABLE (0 = instantané, 400 = délai actuel)
+
+// --- RÉGLAGE DU MODE PARAMETRE LORSQU'IL N'Y A QU'UN CONTACT SUR L'ECRAN, VITESSE DU CYCLE DES COULEURS ---
+const CYCLE_VITESSE_MS = 1200; // Vitesse de la respiration (en ms). 3000 = 3 secondes.
+
+// --- RÉGLAGES DU FINAL (SUSPENSE) ---
+const ROUE_CHANCE_REUSSITE = 50;    // % de chance de passer le dernier picot
+const ROUE_REBOND_MIN = 200;        // Silence court (ms)
+const ROUE_REBOND_MAX = 1000;       // Silence long (ms)
+
+// --- PARAMÈTRES FEEDBACK (TWEAK) ---
+const FEEDBACK_TYPE = 'FORMES';      // 'FORMES' ou 'POINTS'
+const FEEDBACK_FORMES_SIZE = 100;     // Taille des formes (Carré, Triangle...)
+const FEEDBACK_POINTS_DIAMETRE = 100; // Diamètre du cercle de rotation des points
+const FEEDBACK_THICKNESS = 12;        // Épaisseur des traits
+const FEEDBACK_CENTRIFUGE_FORCE = 30; // Pixels de décalage vers le centre (à tweaker)
+const FEEDBACK_VISUAL_OFFSET = 15;    // Décalage vers le haut (en pixels) pour le ressenti
+const FEEDBACK_ROTATION_TPS = 0.1;    // Vitesse en TOURS PAR SECONDE (Ex: 0.5 = 180°/s)
+const FEEDBACK_ORBIT_DOTS_GROUPS = 3; // Nombre de groupes de points (X)
+const BORDURES_FADE_MS = 300; // Durée exacte du mouvement en MILLISECONDES des TRAITS qui se retractent ou sortent
+let activeSnapshot = null;            // Le stockage de notre "photo"
+let modePreviewTimer = null;
+let isModePreview = false;
+
+let fixedZones = []; // Stockage des séparations fixes
+
+// --- NOUVELLE PALETTE (11 couleurs simples) ---
+const FAMILLES = [
+    ['#FF4646'], // 0: Rouge (VIP)
+    ['#E76363'], // 1: Corail
+    ['#FF8F4D'], // 2: Orange
+    ['#FFFF42'], // 3: Jaune (VIP)
+    ['#A8FE3A'], // 4: Vert citron
+    ['#75FE71'], // 5: Vert clair (VIP)
+    ['#03FD9C'], // 6: Menthe
+    ['#2FFFFC'], // 7: Cyan
+    ['#3BBFCE'], // 8: Bleu (VIP)
+    ['#CF3BFC'], // 9: Violet
+    ['#FFAFFF']  // 10: Rose
+];
+
+let assignedColors = []; // Mémoire des couleurs attribuées
+let touchColorMap = {}; // Dictionnaire ID du doigt -> Couleur
+
+// --- RÉGLAGES DU NÉON (PATTERN) ---
+// Structure : [durée du flash, opacité du flash]
+// L'opacité va de 0.2 (sombre) à 1.0 (brillant)
+const NEON_PATTERN = [
+    [30, 0.5],   // Petit flash rapide et faible
+    [30, 0.5],   // Petit flash rapide et faible
+    [30, 0.5],   // Petit flash rapide et faible
+    [30, 0.5],   // Petit flash rapide et faible
+    [80, 0.4],   // Micro-sursaut faible
+    [200, 1.0]   // Dernier flash long avant le fixe
+]; 
+let isNeonFlickering = false;
+let currentNeonOpacity = 1.0; // On stocke l'intensité actuelle ici
+window.ordreNeonStates = [1.0, 1.0, 1.0, 1.0, 1.0];
+window.dispersionProgress = 0; // 0 = centre, 1 = zones
+window.isPreviewDispersion = false; // État par défaut (tout allumé)
+
+const DUREE_ENTRE_CHAQUE_ALLUMAGE_DE_NEON_PARAMETRE_ORDRE = 150;
+
+const BORDURES_LONGUEURS_CUSTOM = {
+    "jaune/bleu": 416,
+    "bleu/vert": 250,
+    "vert/rouge": 268,
+    "rouge/menthe": 415,
+    "menthe/jaune": 192
+};
+
+const FEEDBACK_PREVIEW_PARAMETRE_DOT_SIZE = 6;  // Taille du rayon des points (ex: 8)
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const ui = document.getElementById('debug-ui');
 
-let config = { mode: 'ÉLU UNIQUE', style: 'BORDURES ON', system: 'ORBITAL' };
+let config = localStorage.getItem('firstPickSettings') ? JSON.parse(localStorage.getItem('firstPickSettings')) : { mode: 'ÉLU UNIQUE', style: 'BORDURES ON', system: 'POINTS' };
 let touches = [];
 let opacity = 0;
-
 let touchHistory = {}; 
 let releaseQueue = []; 
 let masterFingerId = null; 
-let fixedStartAngle = null; // Verrou géométrique
-
+let fixedStartAngle = null;
 let audioCtx = null;
 let tickBuffer = null;
 
@@ -134,17 +293,83 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
+function lancerFermeturePreview(delaiSecondes) {
+    clearTimeout(modePreviewTimer); // On tue l'ancien timer s'il existe
+    modePreviewTimer = setTimeout(() => {
+        const startFade = performance.now();
+        const duration = FEEDBACK_FADE_OUT_DURATION_PARAMETER_CHANGE * 1000;
+
+        function animateFadeOut() {
+            const now = performance.now();
+            const progress = (now - startFade) / duration;
+
+            if (progress < 1) {
+                globalFadeOpacity = 1 - progress;
+                requestAnimationFrame(animateFadeOut);
+            } else {
+                isModePreview = false;
+                isNeonFlickering = false;
+                window.isPreviewDispersion = false; // Sécurité
+                globalFadeOpacity = 1.0;
+            }
+        }
+        animateFadeOut();
+    }, delaiSecondes * 1000);
+}
+
 function handleSettings(count) {
+    if (activeSnapshot) return; 
+
+    // NETTOYAGE RADICAL DE TOUS LES TIMERS ET ÉTATS PRÉCÉDENTS
+    clearTimeout(modePreviewTimer);
+    clearTimeout(spinTimeout);
+    isNeonFlickering = false;
+    window.isPreviewDispersion = false;
+    window.bordureFadeTriggered = false;
+    window.bordureAnimStart = 0; 
+    globalFadeOpacity = 1.0; // On remet l'écran à 100% visible pour la nouvelle preview
+
     if (count === 2) {
         config.mode = config.mode === 'ÉLU UNIQUE' ? 'ORDRE DU TOUR' : 'ÉLU UNIQUE';
-        showToast(`MODE: ${config.mode}`);
-    } else if (count === 3) {
-        config.system = config.system === 'ORBITAL' ? 'GÉOMÉTRIQUE' : 'ORBITAL';
-        showToast(`SYSTÈME: ${config.system}`);
-    } else if (count === 4) {
+        isModePreview = true;
+        if (config.mode === 'ÉLU UNIQUE') {
+            window.victoryTime = performance.now();
+            triggerNeonEffect();
+        } else {
+            triggerPointsNeonEffect();
+        }
+    } 
+    else if (count === 3) {
+        config.system = config.system === 'POINTS' ? 'FORMES' : 'POINTS';
+        isModePreview = true;
+        window.isPreviewDispersion = true;
+        window.dispersionProgress = 0;
+
+        const animStart = performance.now();
+        const animDuration = 600; 
+
+        function animateDispersion() {
+            const now = performance.now();
+            const elapsed = now - animStart;
+            const t = Math.min(1, elapsed / animDuration);
+            window.dispersionProgress = t * t * (3 - 2 * t);
+
+            if (t < 1 && window.isPreviewDispersion) {
+                requestAnimationFrame(animateDispersion);
+            } else if (t >= 1) {
+                lancerFermeturePreview(DUREE_MAINTIEN_PREVIEW_PARAMETRE_DOTS);
+            }
+        }
+        animateDispersion();
+    } 
+    else if (count === 4) {
         config.style = config.style === 'BORDURES OFF' ? 'BORDURES ON' : 'BORDURES OFF';
-        showToast(`TRAITS: ${config.style}`);
+        isModePreview = true;
+        window.bordureAnimStart = performance.now();
+        window.bordureFadeTriggered = false;
     }
+
+    localStorage.setItem('firstPickSettings', JSON.stringify(config));
 }
 
 function showToast(msg) {
@@ -154,131 +379,8 @@ function showToast(msg) {
     window.toastTimer = setTimeout(() => { ui.style.color = "transparent"; }, 1500);
 }
 
-let fixedZones = []; // Stockage des séparations fixes
-
-// --- PALETTE OFFICIELLE (14 couleurs / 7 familles) ---
-const FAMILLES = [
-    ['#ff6f6e', '#d3447a'], // T1: Rouges
-    ['#FFB03B', '#FF8247'], // T2: Oranges
-    ['#FFDB4D', '#ffef82'], // T3: Jaunes
-    ['#B8FF5C', '#61FF93'], // T4: Verts
-    ['#61FFC3', '#00CED1'], // T5: Menthes
-    ['#2fc2ff', '#5271FF'], // T6: Bleus
-    ['#dc73ff', '#fec1ff']  // T7: Violets
-];
-
-let assignedColors = []; // Mémoire des couleurs attribuées
-let touchColorMap = {}; // Dictionnaire ID du doigt -> Couleur
-
-// --- CONFIGURATION ROUE ---
-const SPIN_DELAY = 400;   // Temps d'attente (ms) avant lancement
-let spinTimer = null;      // Compte à rebours de stabilité
-let isSpinning = false;    // État de rotation
-let winnerId = null;       // ID du gagnant final
-let currentActiveId = null; // L'ID du doigt qui brille actuellement
-let wheelOrder = [];        // La suite logique des IDs (sens horaire)
-let spinTimeout = null;    // Timer du mouvement
-
-// --- RÉGLAGES DE LA ROUE (TWEAK ICI) ---
-const ROUE_VITESSE_FIXE = 125;      
-const ROUE_TICKS_MINIMUM = 20;      
-const ROUE_PALIER_FREINAGE = 15;    // X : quand on commence à ralentir
-const ROUE_RALENTI_MIN = 1.1;       // Multiplicateur min
-const ROUE_RALENTI_MAX = 1.3;       // Multiplicateur max
-const ROUE_OPACITE_INACTIF = 0.35;
-
-// --- RÉGLAGES DU FINAL (SUSPENSE) ---
-const ROUE_CHANCE_REUSSITE = 50;    // % de chance de passer le dernier picot
-const ROUE_REBOND_MIN = 200;        // Silence court (ms)
-const ROUE_REBOND_MAX = 1000;       // Silence long (ms)
-
-// --- RÉGLAGES DU NÉON (PATTERN) ---
-// Structure : [durée du flash, opacité du flash]
-// L'opacité va de 0.2 (sombre) à 1.0 (brillant)
-const NEON_PATTERN = [
-    [30, 0.5],   // Petit flash rapide et faible
-    [80, 1.0],   // Flash plus long et intense
-    [40, 0.4],   // Micro-sursaut faible
-    [250, 1.0]   // Dernier flash long avant le fixe
-]; 
-let isNeonFlickering = false;
-let currentNeonOpacity = 1.0; // On stocke l'intensité actuelle ici
-
-
-
-function drawLines() {
-    if (touches.length < 2 || config.style === 'BORDURES OFF') {
-        fixedZones = [];
-        return;
-    }
-
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const numPlayers = touches.length;
-
-    // RÈGLE 1 : Si le nombre de zones a changé, on RECALCULE TOUT (Le Saut)
-    if (fixedZones.length !== numPlayers) {
-        fixedZones = [];
-        
-        // On trie les touches par angle pour qu'elles se suivent sur le cercle
-        let sortedTouches = [...touches].sort((a, b) => a.angle - b.angle);
-
-        for (let i = 0; i < numPlayers; i++) {
-            let current = sortedTouches[i];
-            let next = sortedTouches[(i + 1) % numPlayers];
-
-            // Calcul de l'angle entre deux doigts
-            let diff = next.angle - current.angle;
-            if (diff < 0) diff += Math.PI * 2;
-
-            // RÈGLE 2 : On place la ligne pile au milieu des deux doigts
-            // Cela garantit que chaque doigt est AU CENTRE de sa zone
-            let bisector = current.angle + diff / 2;
-            fixedZones.push(bisector);
-        }
-    }
-
-    // Dessin des lignes mémorisées
-    ctx.strokeStyle = 'black';
-    ctx.lineWidth = 12;
-    ctx.lineCap = 'round';
-
-    fixedZones.forEach(angle => {
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        const lineLength = Math.max(canvas.width, canvas.height) * 1.5;
-        ctx.lineTo(
-            centerX + Math.cos(angle) * lineLength,
-            centerY + Math.sin(angle) * lineLength
-        );
-        ctx.stroke();
-    });
-}
-
-const unlocker = document.getElementById('audio-unlocker');
-
-unlocker.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    if (audioCtx) {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        const source = audioCtx.createBufferSource();
-        source.buffer = audioCtx.createBuffer(1, 1, 22050);
-        source.connect(audioCtx.destination);
-        source.start(0);
-    }
-    unlocker.remove();
-    const canvasEv = new TouchEvent('touchstart', {
-        cancelable: true, bubbles: true,
-        touches: Array.from(e.touches),
-        targetTouches: Array.from(e.targetTouches),
-        changedTouches: Array.from(e.changedTouches)
-    });
-    canvas.dispatchEvent(canvasEv);
-});
-
 canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
-    fixedZones = []; 
     const now = Date.now();
     Array.from(e.changedTouches).forEach(t => {
         touchHistory[t.identifier] = now;
@@ -290,7 +392,6 @@ canvas.addEventListener('touchstart', (e) => {
 
 canvas.addEventListener('touchend', (e) => {
     const now = Date.now();
-    fixedZones = []; 
 
     // On efface la couleur associée aux doigts qui quittent l'écran
     Array.from(e.changedTouches).forEach(t => {
@@ -313,7 +414,31 @@ canvas.addEventListener('touchend', (e) => {
     });
     updateTouches(e.touches);
     resetRoueTimer();
+
+    // NETTOYAGE RADICAL : Si plus aucun doigt, on vide tout
+    if (e.touches.length === 0) {
+        touches = [];
+        touchColorMap = {};
+        fixedZones = [];
+        clearTimeout(spinTimer);
+        clearTimeout(spinTimeout);
+        isSpinning = false;
+        winnerId = null;
+    }
 });
+
+// --- LE BLOC DE SÉCURITÉ (SIGNAL ANNULÉ PAR LE TÉLÉPHONE) ---
+canvas.addEventListener('touchcancel', (e) => {
+    touches = [];
+    touchColorMap = {};
+    fixedZones = [];
+    masterFingerId = null;
+    clearTimeout(spinTimer);
+    clearTimeout(spinTimeout);
+    isSpinning = false;
+    winnerId = null;
+    updateTouches(e.touches);
+}, { passive: false });
 
 function analyzeReleases() {
     if (releaseQueue.length > 0) {
@@ -330,113 +455,145 @@ canvas.addEventListener('touchmove', (e) => {
 }, { passive: false });
 
 function updateTouches(touchList) {
+    // --- MODIFICATION : SUIVI DU DOIGT EN MODE RÉSULTAT ---
+    if (activeSnapshot) {
+        // On met à jour uniquement les positions X et Y en direct
+        Array.from(touchList).forEach(liveTouch => {
+            let snapTouch = activeSnapshot.touches.find(t => t.id === liveTouch.identifier);
+            if (snapTouch) {
+                snapTouch.x = liveTouch.clientX;
+                snapTouch.y = liveTouch.clientY;
+            }
+        });
+        return; // Bouclier : on stoppe ici pour ne pas recalculer les zones ou les couleurs
+    }
+    
+    const list = Array.from(touchList);
+    if (list.length === 0) { 
+        touchColorMap = {}; 
+        touches = []; // On vide physiquement la liste des doigts
+        return; 
+    }
+
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
-    const list = Array.from(touchList);
 
-    // 1. On prépare les objets avec leurs angles
     let tempTouches = list.map(t => {
         const angle = Math.atan2(t.clientY - centerY, t.clientX - centerX);
         return { x: t.clientX, y: t.clientY, id: t.identifier, angle: angle };
     });
 
-    // 2. Attribution avec verrouillage d'UNICITÉ totale
-    touches = tempTouches.map(t => {
-        // Si le doigt est déjà connu, on ne change rien
-        if (touchColorMap[t.id]) {
-            return { ...t, ...touchColorMap[t.id] };
-        } else {
-            // NOUVEAU DOIGT
-            const activeEntries = Object.values(touchColorMap);
-            // Liste des familles déjà utilisées par les autres doigts présents
-            const famillesPrises = activeEntries.map(c => c.familyIdx);
-            
-            let chosenFamily;
-
-            // Trouver les voisins physiques pour la règle du saut de teinte
-            const sorted = [...tempTouches].filter(ot => touchColorMap[ot.id]).sort((a, b) => a.angle - b.angle);
-            
-            // On met à jour l'ordre global sans trier le tableau principal 
-            // pour ne pas perturber le dessin des zones en cours
-            
-            let famG = null;
-            let famD = null;
-
-            if (sorted.length > 0) {
-                let nextIdx = sorted.findIndex(ot => ot.angle > t.angle);
-                if (nextIdx === -1) nextIdx = 0;
-                let prevIdx = (nextIdx - 1 + sorted.length) % sorted.length;
-                famG = touchColorMap[sorted[prevIdx].id].familyIdx;
-                famD = touchColorMap[sorted[nextIdx].id].familyIdx;
-            }
-
-            // --- FILTRAGE STRICT ---
-            let candidatsValides = [];
-            for (let f = 0; f < 7; f++) {
-                // CONDITION 1 : La famille ne doit PAS être déjà sur l'écran (UNICITÉ)
-                if (famillesPrises.includes(f)) continue;
-
-                // CONDITION 2 : Saut de teinte avec le voisin de GAUCHE
-                if (famG !== null) {
-                    let distG = Math.min(Math.abs(f - famG), 7 - Math.abs(f - famG));
-                    if (distG <= 1) continue;
-                }
-
-                // CONDITION 3 : Saut de teinte avec le voisin de DROITE
-                if (famD !== null) {
-                    let distD = Math.min(Math.abs(f - famD), 7 - Math.abs(f - famD));
-                    if (distD <= 1) continue;
-                }
-
-                candidatsValides.push(f);
-            }
-
-            // Si on a des candidats qui respectent tout, on prend le plus "loin" (anticipation)
-            if (candidatsValides.length > 0) {
-                let bestScore = -1;
-                let finalPool = [];
-                candidatsValides.forEach(f => {
-                    let score = 99; 
-                    if (famG !== null) score = Math.min(score, Math.min(Math.abs(f - famG), 7 - Math.abs(f - famG)));
-                    if (famD !== null) score = Math.min(score, Math.min(Math.abs(f - famD), 7 - Math.abs(f - famD)));
-                    
-                    if (score > bestScore) {
-                        bestScore = score;
-                        finalPool = [f];
-                    } else if (score === bestScore) {
-                        finalPool.push(f);
-                    }
-                });
-                chosenFamily = finalPool[Math.floor(Math.random() * finalPool.length)];
-            } else {
-                // Cas de secours : on prend n'importe quelle famille pas encore utilisée
-                for (let f = 0; f < 7; f++) {
-                    if (!famillesPrises.includes(f)) {
-                        chosenFamily = f;
-                        break;
-                    }
-                }
-            }
-
-            const variantIdx = Math.floor(Math.random() * 2);
-            const colorData = { color: FAMILLES[chosenFamily][variantIdx], familyIdx: chosenFamily };
-            touchColorMap[t.id] = colorData;
-            return { ...t, ...colorData };
+    // MÉMOIRE DES ZONES : Calcul dynamique ici
+    if (tempTouches.length >= 2) {
+        fixedZones = [];
+        let sorted = [...tempTouches].sort((a, b) => a.angle - b.angle);
+        for (let i = 0; i < sorted.length; i++) {
+            let current = sorted[i];
+            let next = sorted[(i + 1) % sorted.length];
+            let diff = next.angle - current.angle;
+            if (diff < 0) diff += Math.PI * 2;
+            fixedZones.push(current.angle + diff / 2);
         }
-    });
+    }
 
+    touches = tempTouches.map(t => {
+        if (touchColorMap[t.id]) return { ...t, ...touchColorMap[t.id] };
+        const activeEntries = Object.values(touchColorMap);
+        const famillesPrises = activeEntries.map(c => c.familyIdx);
+        let chosenFamily;
+        const sorted = [...tempTouches].filter(ot => touchColorMap[ot.id]).sort((a, b) => a.angle - b.angle);
+        let famG = null; let famD = null;
+        if (sorted.length > 0) {
+            let nextIdx = sorted.findIndex(ot => ot.angle > t.angle);
+            if (nextIdx === -1) nextIdx = 0;
+            let prevIdx = (nextIdx - 1 + sorted.length) % sorted.length;
+            famG = touchColorMap[sorted[prevIdx].id].familyIdx;
+            famD = touchColorMap[sorted[nextIdx].id].familyIdx;
+        }
+        // --- NOUVEAU CERVEAU : LOTO TRUQUÉ + CONTRASTE ---
+        const NB_COULEURS = 11;
+        const VIP = [0, 3, 5, 8]; // Rouge, Jaune, Vert clair, Bleu
+        // La liste noire stricte des couples trop proches
+        const INTERDITS = ["0-1", "1-0", "1-2", "2-1", "4-5", "5-4", "5-6", "6-5", "4-6", "6-4"];
+
+        let candidatsValides = [];
+        for (let f = 0; f < NB_COULEURS; f++) {
+            if (famillesPrises.includes(f)) continue;
+            
+            let isValide = true;
+            if (famG !== null && INTERDITS.includes(`${f}-${famG}`)) isValide = false;
+            if (famD !== null && INTERDITS.includes(`${f}-${famD}`)) isValide = false;
+            
+            if (isValide) candidatsValides.push(f);
+        }
+
+        if (candidatsValides.length > 0) {
+            // 1. RECHERCHE DU CONTRASTE MAXIMAL
+            let bestScore = -1; 
+            let finalPool = [];
+            
+            candidatsValides.forEach(f => {
+                let score = 99; // Si 1er doigt, score parfait direct
+                if (famG !== null || famD !== null) {
+                    let distG = famG !== null ? Math.min(Math.abs(f - famG), NB_COULEURS - Math.abs(f - famG)) : 99;
+                    let distD = famD !== null ? Math.min(Math.abs(f - famD), NB_COULEURS - Math.abs(f - famD)) : 99;
+                    score = Math.min(distG, distD); // Le score est la distance avec le voisin le plus proche
+                }
+                
+                if (score > bestScore) { 
+                    bestScore = score; 
+                    finalPool = [f]; 
+                } else if (score === bestScore) { 
+                    finalPool.push(f); 
+                }
+            });
+            
+            // 2. LE LOTO TRUQUÉ (Parmi les couleurs à fort contraste)
+            let chapeau = [];
+            finalPool.forEach(f => {
+                chapeau.push(f); // Ticket de base pour tout le monde
+                if (VIP.includes(f)) {
+                    chapeau.push(f, f); // +2 tickets bonus pour les stars (3 chances de tirage)
+                }
+            });
+            
+            chosenFamily = chapeau[Math.floor(Math.random() * chapeau.length)];
+        } else {
+            // MODE PANIQUE : On prend la première couleur dispo dans l'arc-en-ciel
+            for (let f = 0; f < NB_COULEURS; f++) { if (!famillesPrises.includes(f)) { chosenFamily = f; break; } }
+        }
+
+        // Attribution finale (l'index 0 car il n'y a plus de variantes)
+        const colorData = { color: FAMILLES[chosenFamily][0], familyIdx: chosenFamily };
+        touchColorMap[t.id] = colorData;
+        return { ...t, ...colorData };
+    });
 }
 
 function resetRoueTimer() {
+    // LE BOUCLIER : Si une photo (Snapshot) est active, on bloque tout changement de moteur
+    if (activeSnapshot) return;
+
+    const wasSpinning = isSpinning;
+
     clearTimeout(spinTimer);
     clearTimeout(spinTimeout);
     isSpinning = false;
     winnerId = null;
 
     if (touches.length >= 2) {
-        spinTimer = setTimeout(() => {
-            if (touches.length >= 2 && !isSpinning) startFortuneWheel();
-        }, SPIN_DELAY);
+        // Si on est en train de modifier le nombre de doigts
+        // On utilise ton nouveau paramètre de modularité
+        if (wasSpinning) {
+            spinTimer = setTimeout(() => {
+                if (touches.length >= 2 && !isSpinning) startFortuneWheel();
+            }, ROUE_RESET_DELAY);
+        } else {
+            // Premier lancement (toujours avec le délai initial pour le confort)
+            spinTimer = setTimeout(() => {
+                if (touches.length >= 2 && !isSpinning) startFortuneWheel();
+            }, SPIN_DELAY);
+        }
     }
 }
 
@@ -491,119 +648,581 @@ function startFortuneWheel() {
 }
 
 function handleFinalSequence(succes, finalId) {
-    if (succes) {
-        // SCÉNARIO A : Réussite nette
-        winnerId = finalId;
+    const triggerSnapshot = (id) => {
+        winnerId = id;
         isSpinning = false;
-        triggerNeonEffect();
-    } else {
-        // SCÉNARIO B : Rebond / Échec (le suspense de silence)
-        const delaiRebond = Math.random() * (ROUE_REBOND_MAX - ROUE_REBOND_MIN) + ROUE_REBOND_MIN;
+        window.victoryTime = performance.now();
+        window.resultZonesOpacity = 1.0; // Reset opacité zones
+
+        activeSnapshot = {
+            touches: JSON.parse(JSON.stringify(touches)),
+            zones: [...fixedZones],
+            winnerId: id
+        };
+
+        // --- DÉBUT DE LA SÉQUENCE À 3 PHASES ---
         
-        setTimeout(() => {
-            winnerId = finalId;
-            isSpinning = false;
-            triggerNeonEffect();
-        }, delaiRebond);
+        // PHASE 1 : ACTION
+        const actionDuration = (config.mode === 'ÉLU UNIQUE') ? 600 : ORDRE_FADE_IN_MS; 
+        
+        if (config.mode === 'ÉLU UNIQUE') {
+            triggerNeonEffect(() => demarrerPhasePose());
+        } else {
+            // En mode ordre, l'action est le fade-in des perdants. On attend sa fin.
+            setTimeout(() => demarrerPhasePose(), actionDuration);
+        }
+
+        function demarrerPhasePose() {
+            // PHASE 2 : POSE (MAINTIEN)
+            const dureePose = (config.mode === 'ÉLU UNIQUE') ? DUREE_POSE_ELU : DUREE_POSE_ORDRE;
+            setTimeout(() => demarrerPhaseSortie(), dureePose * 1000);
+        }
+
+        function demarrerPhaseSortie() {
+            // PHASE 3 : SORTIE (FONDU DES ZONES UNIQUEMENT)
+            const dureeFade = (config.mode === 'ÉLU UNIQUE') ? DUREE_FADE_ZONES_ELU : DUREE_FADE_ZONES_ORDRE;
+            const startFade = performance.now();
+
+            const animateZones = () => {
+                const now = performance.now();
+                const progress = (now - startFade) / (dureeFade * 1000);
+
+                if (progress < 1) {
+                    window.resultZonesOpacity = 1 - progress;
+                    requestAnimationFrame(animateZones);
+                } else {
+                    // NETTOYAGE FINAL
+                    activeSnapshot = null;
+                    winnerId = null;
+                    touches = []; 
+                    touchColorMap = {}; 
+                    fixedZones = [];
+                    window.resultZonesOpacity = 1.0;
+                }
+            };
+            animateZones();
+        }
+    };
+
+    if (succes) {
+        triggerSnapshot(finalId);
+    } else {
+        const delaiRebond = Math.random() * (ROUE_REBOND_MAX - ROUE_REBOND_MIN) + ROUE_REBOND_MIN;
+        setTimeout(() => triggerSnapshot(finalId), delaiRebond);
     }
 }
 
-function triggerNeonEffect() {
-    if (config.mode !== 'ÉLU UNIQUE') return;
+function triggerNeonEffect(onComplete) {
+    if (config.mode !== 'ÉLU UNIQUE') { if(onComplete) onComplete(); return; }
     
     isNeonFlickering = true;
     let patternIdx = 0;
 
     function runPattern() {
         if (patternIdx >= NEON_PATTERN.length) {
-            currentNeonOpacity = 1.0; // Fixe à la fin
+            currentNeonOpacity = 1.0;
+            if (isModePreview) lancerFermeturePreview(DUREE_MAINTIEN_PREVIEW_PARAMETRE_ELU);
+            if (onComplete) onComplete(); // Signal de fin de Phase 1
             return;
         }
-
         const [duree, opacite] = NEON_PATTERN[patternIdx];
-
-        // 1. PHASE ALLUMÉE (avec l'intensité choisie)
         currentNeonOpacity = opacite;
-        
         setTimeout(() => {
-            // 2. PHASE ÉTEINTE (on retombe à 0.2)
             currentNeonOpacity = 0.2;
-            
             setTimeout(() => {
                 patternIdx++;
                 runPattern();
-            }, duree); // On utilise la même durée pour le temps "éteint"
-            
+            }, duree);
         }, duree);
     }
     runPattern();
 }
 
+function triggerPointsNeonEffect() {
+    // 1. On éteint tout immédiatement (0.2)
+    window.ordreNeonStates = [0.2, 0.2, 0.2, 0.2, 0.2];
+    
+    // 2. On programme l'allumage de chaque zone avec le délai d'attente
+    for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+            window.ordreNeonStates[i] = 1.0;
+            
+            // Si c'est la dernière zone (la 5ème, donc index 4), on lance la fermeture
+            if (i === 4) {
+                lancerFermeturePreview(DUREE_MAINTIEN_PREVIEW_PARAMETRE_ORDRE);
+            }
+        }, (i + 1) * DUREE_ENTRE_CHAQUE_ALLUMAGE_DE_NEON_PARAMETRE_ORDRE);
+    }
+}
+
+function drawFeedback(x, y, index) {
+    // Si index est 0, rank sera 1. Si index est 1, rank sera 2.
+    const rank = index + 1;
+    
+    // CALCUL PROFESSIONNEL DE LA ROTATION
+    // performance.now() donne le temps en ms depuis le chargement de la page
+    // (tours_par_sec * 2PI) / 1000ms = angle parcouru par milliseconde
+    const time = performance.now();
+    const rotationAngle = time * (FEEDBACK_ROTATION_TPS * Math.PI * 2) / 1000;
+    
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rotationAngle);
+    
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = FEEDBACK_THICKNESS;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Utilise la config dynamique du menu, ou la variable par défaut POINTS/FORMES
+    const currentStyle = config.system || FEEDBACK_TYPE;
+
+    if (currentStyle === 'FORMES') { 
+        ctx.beginPath();
+        if (rank === 1) { // CERCLE
+            ctx.arc(0, 0, FEEDBACK_FORMES_SIZE / 2, 0, Math.PI * 2);
+        } else if (rank === 2) { // CROIX
+            const s = FEEDBACK_FORMES_SIZE / 2;
+            ctx.moveTo(-s, -s); ctx.lineTo(s, s);
+            ctx.moveTo(s, -s); ctx.lineTo(-s, s);
+        } else if (rank === 3) { // TRIANGLE
+            for (let i = 0; i < 3; i++) {
+                const a = (i / 3) * Math.PI * 2 - Math.PI / 2;
+                ctx.lineTo(Math.cos(a) * (FEEDBACK_FORMES_SIZE / 1.5), Math.sin(a) * (FEEDBACK_FORMES_SIZE / 1.5));
+            }
+            ctx.closePath();
+        } else if (rank === 4) { // CARRÉ
+            const s = FEEDBACK_FORMES_SIZE / 2;
+            ctx.rect(-s, -s, FEEDBACK_FORMES_SIZE, FEEDBACK_FORMES_SIZE);
+        } else { // PENTAGONE
+            for (let i = 0; i < 5; i++) {
+                const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+                ctx.lineTo(Math.cos(a) * (FEEDBACK_FORMES_SIZE / 1.5), Math.sin(a) * (FEEDBACK_FORMES_SIZE / 1.5));
+            }
+            ctx.closePath();
+        }
+        ctx.stroke();
+    } else {
+        // SYSTÈME ORBITAL (DOTS)
+        const groups = FEEDBACK_ORBIT_DOTS_GROUPS;
+        const dotRadius = 6;
+        for (let g = 0; g < groups; g++) {
+            const groupAngle = (g / groups) * Math.PI * 2;
+            for (let d = 0; d < rank; d++) {
+                const dotAngle = groupAngle + (d * 0.25); 
+                // Utilisation du nouveau paramètre DIAMETRE ici :
+                const dx = Math.cos(dotAngle) * (FEEDBACK_POINTS_DIAMETRE / 2);
+                const dy = Math.sin(dotAngle) * (FEEDBACK_POINTS_DIAMETRE / 2);
+                ctx.beginPath();
+                ctx.arc(dx, dy, dotRadius, 0, Math.PI * 2);
+                ctx.save();
+                ctx.globalAlpha = globalFadeOpacity; 
+                ctx.fillStyle = 'black';
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+    }
+    ctx.restore();
+}
+
+function calculateZoneBarycenter(targetAngle) {
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    let sumX = 0, sumY = 0, totalPoints = 0;
+
+    // On définit une fenêtre d'angle autour de la direction du doigt/zone
+    const anglePart = (Math.PI * 2) / (touches.length || 5); 
+    const startAngle = targetAngle - anglePart / 2;
+    const endAngle = targetAngle + anglePart / 2;
+
+    const step = 20; 
+    for (let x = 0; x < canvas.width; x += step) {
+        for (let y = 0; y < canvas.height; y += step) {
+            let angle = Math.atan2(y - centerY, x - centerX);
+            let diff = angle - startAngle;
+            while (diff < 0) diff += Math.PI * 2;
+            while (diff >= Math.PI * 2) diff -= Math.PI * 2;
+
+            if (diff >= 0 && diff < anglePart) {
+                sumX += x; sumY += y; totalPoints++;
+            }
+        }
+    }
+    return totalPoints > 0 ? {x: sumX / totalPoints, y: sumY / totalPoints} : {x: centerX, y: centerY};
+}
+
+function drawPreviewPoints(count, currentAngle, startSeparator, endSeparator) {
+    const dotRadius = FEEDBACK_PREVIEW_PARAMETRE_DOT_SIZE;
+    const spacing = dotRadius * 2.2;
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+
+    let sumX = 0, sumY = 0, totalPoints = 0;
+
+    // On scanne précisément entre les deux séparateurs de la zone
+    const step = 15; 
+    for (let x = 0; x < canvas.width; x += step) {
+        for (let y = 0; y < canvas.height; y += step) {
+            let angle = Math.atan2(y - centerY, x - centerX);
+            
+            let diff = angle - startSeparator;
+            while (diff < 0) diff += Math.PI * 2;
+            while (diff >= Math.PI * 2) diff -= Math.PI * 2;
+            
+            let zoneSpan = endSeparator - startSeparator;
+            while (zoneSpan <= 0) zoneSpan += Math.PI * 2;
+
+            if (diff >= 0 && diff < zoneSpan) {
+                sumX += x; sumY += y; totalPoints++;
+            }
+        }
+    }
+
+    const finalX = totalPoints > 0 ? sumX / totalPoints : centerX;
+    const finalY = totalPoints > 0 ? sumY / totalPoints : centerY;
+
+    ctx.save();
+    // On multiplie le clignotement par le fondu de sortie
+    ctx.globalAlpha = currentPointsNeonOpacity * globalFadeOpacity;
+    ctx.fillStyle = 'black';
+    ctx.beginPath();
+    for (let i = 0; i < count; i++) {
+        const offset = (i - (count - 1) / 2) * spacing;
+        ctx.arc(finalX + offset, finalY, dotRadius, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    ctx.restore();
+}
+
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    let dataSource = activeSnapshot ? activeSnapshot.touches : touches;
+    let currentWinnerId = activeSnapshot ? activeSnapshot.winnerId : winnerId;
 
-    if (touches.length > 0) {
+    // --- LOGIQUE DE PREVIEW DU MODE ---
+    // On autorise l'affichage même si un doigt (l'ancrage) est encore là
+    if (isModePreview && !activeSnapshot && (touches.length === 0 || touches.length === 1)) {
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
-        const baseRadius = Math.max(canvas.width, canvas.height) * 1.5;
+        dataSource = [];
+        // Définition manuelle des angles pour un look organique (pas régulier)
+        // On définit l'angle central de chaque zone
+        const organicAngles = [
+            -Math.PI / 2,        // 12h (Bleu)
+            Math.PI * 0.05,      // ~4h (Vert)
+            Math.PI * 0.45,      // ~7h (Rouge)
+            Math.PI * 0.85,      // ~10h (Menthe)
+            Math.PI * 1.25       // ~1h (Jaune)
+        ];
 
-        if (touches.length === 1) {
-            ctx.fillStyle = "white";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.globalAlpha = 1.0;
-            ctx.fillStyle = touches[0].color;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        } 
-        else if (touches.length >= 2) {
-            drawLines();
-            let sortedSeps = [...fixedZones].sort((a, b) => a - b);
+        // MENU VITRINE (Modifiable ici) : Bleu(8), Vert clair(5), Rouge(0), Menthe(6), Jaune(3)
+        const organicFamilies = [8, 5, 0, 6, 3];
+        // Attribution des points : Bleu=5, Vert=3, Rouge=1, Menthe=4, Jaune=2
+        const customCounts = [5, 3, 1, 4, 2];
 
-            for (let i = 0; i < sortedSeps.length; i++) {
-                let start = sortedSeps[i];
-                let end = sortedSeps[(i + 1) % sortedSeps.length];
-                let mid = start + ((end < start ? end + Math.PI * 2 : end) - start) / 2;
-                let normMid = Math.atan2(Math.sin(mid), Math.cos(mid));
+        organicAngles.forEach((angle, i) => {
+            dataSource.push({
+                x: centerX + Math.cos(angle) * 100,
+                y: centerY + Math.sin(angle) * 100,
+                angle: angle,
+                id: "ghost" + i,
+                color: FAMILLES[organicFamilies[i]][0],
+                count: customCounts[i] // On stocke le chiffre ici
+            });
+        });
+        // Si on règle les symboles, on allume toutes les zones à fond pour que ça "pope"
+        if (config.mode === 'ÉLU UNIQUE' && !window.isPreviewDispersion) {
+            currentWinnerId = "ghost0";
+        } else {
+            currentWinnerId = "ghost_all"; 
+        }
+    }
 
-                let closestTouch = touches.reduce((p, c) => {
-                    return Math.abs(Math.atan2(Math.sin(p.angle - normMid), Math.cos(p.angle - normMid))) < 
-                           Math.abs(Math.atan2(Math.sin(c.angle - normMid), Math.cos(c.angle - normMid))) ? p : c;
-                });
+    // Si on n'est pas en train de montrer le feedback et qu'il n'y a pas de doigts
+    if (dataSource.length === 0 && !activeSnapshot && !isModePreview) {
+        requestAnimationFrame(draw);
+        return; 
+    }
 
-                let isCurrentActive = (isSpinning && closestTouch.id === currentActiveId);
-                let isWinner = (winnerId === closestTouch.id);
-                
-                // Rayon fixe, aucune animation de pulsation
-                let visualRadius = baseRadius;
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const baseRadius = Math.max(canvas.width, canvas.height) * 1.5;
 
-                // --- DESSIN ---
+    if (dataSource.length === 1) {
+        ctx.globalAlpha = globalFadeOpacity;
+        
+        // --- LOGIQUE DE CYCLE "GOOGLE" (Respiration) ---
+        // On utilise maintenant ta manette située en haut du code
+        const temps = performance.now() / CYCLE_VITESSE_MS;
+        
+        const indexActuel = Math.floor(temps % FAMILLES.length);
+        const indexSuivant = (indexActuel + 1) % FAMILLES.length;
+        const progression = temps % 1; 
+
+        const couleurVivante = mixColors(FAMILLES[indexActuel][0], FAMILLES[indexSuivant][0], progression);
+        
+        ctx.fillStyle = couleurVivante;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } 
+    else if (dataSource.length >= 2) {
+        let currentAngles = [];
+        let sortedTouches = [...dataSource].sort((a, b) => a.angle - b.angle);
+        for (let i = 0; i < sortedTouches.length; i++) {
+            let current = sortedTouches[i];
+            let next = sortedTouches[(i + 1) % sortedTouches.length];
+            let diff = next.angle - current.angle;
+            if (diff < 0) diff += Math.PI * 2;
+            currentAngles.push(current.angle + diff / 2);
+        }
+
+        for (let i = 0; i < currentAngles.length; i++) {
+            let start = currentAngles[i];
+            let end = currentAngles[(i + 1) % currentAngles.length];
+            let mid = start + ((end < start ? end + Math.PI * 2 : end) - start) / 2;
+            let normMid = Math.atan2(Math.sin(mid), Math.cos(mid));
+
+            let closestTouch = dataSource.reduce((p, c) => {
+                return Math.abs(Math.atan2(Math.sin(p.angle - normMid), Math.cos(p.angle - normMid))) < 
+                       Math.abs(Math.atan2(Math.sin(c.angle - normMid), Math.cos(c.angle - normMid))) ? p : c;
+            });
+
+            let isCurrentActive = (isSpinning && closestTouch.id === currentActiveId);
+            let isWinner = (currentWinnerId === closestTouch.id || currentWinnerId === "ghost_all");
+            
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, baseRadius, start, (end < start ? end + Math.PI * 2 : end));
+
+            // 1. CALCUL DE L'OPACITÉ, DE LA COULEUR ET DU FOND
+            let finalAlpha = 1.0;
+            let finalColor = closestTouch.color;
+            let useWhiteBackground = false;
+
+            if (isCurrentActive || isWinner) {
+                // LE GAGNANT (Toujours sur fond noir)
+                if (isWinner && isNeonFlickering) {
+                    finalAlpha = currentNeonOpacity;
+                } else if (isWinner && isModePreview && config.mode === 'ORDRE DU TOUR') {
+                    const mapping = { "ghost2": 0, "ghost4": 1, "ghost1": 2, "ghost3": 3, "ghost0": 4 };
+                    const zoneIdx = mapping[closestTouch.id];
+                    finalAlpha = (window.ordreNeonStates && window.ordreNeonStates[zoneIdx] !== undefined) ? window.ordreNeonStates[zoneIdx] : 1.0;
+                }
+            } else {
+                // LES AUTRES (Gestion du fond blanc vs fond noir invisible)
+                let elapsedResult = performance.now() - (window.victoryTime || 0);
+                // Par défaut, c'est allumé à fond (1.0) tant qu'on attend
+                // Mais si la roue tourne (isSpinning) ou qu'un gagnant est là (currentWinnerId), on passe en mode sombre (0.35)
+                let baseAlpha = (isSpinning || (currentWinnerId && currentWinnerId !== "ghost_all")) ? ROUE_OPACITE_INACTIF : 1.0;
+
+                // Cas particulier du mode ORDRE : on rallume progressivement les zones après le résultat
+                if (currentWinnerId && currentWinnerId !== "ghost_all" && !isModePreview) {
+                    if (config.mode === 'ORDRE DU TOUR') {
+                        let fadeProgress = Math.min(1, elapsedResult / ORDRE_FADE_IN_MS);
+                        baseAlpha = ROUE_OPACITE_INACTIF + (fadeProgress * (1.0 - ROUE_OPACITE_INACTIF));
+                    }
+                }
+
+                if (activeSnapshot) {
+                    // --- PHASE RÉSULTAT : On bascule sur la couleur opaque cuite (fond noir) ---
+                    finalColor = getBakedColor(closestTouch.color, baseAlpha);
+                    finalAlpha = 1.0;
+                    useWhiteBackground = false; 
+                } else {
+                    // --- PHASE JEU : On garde la transparence sur fond blanc ---
+                    useSolidBackground = true;
+                    finalAlpha = baseAlpha;
+                }
+            }
+
+            // 2. DESSIN DU FOND NOIR (Pour garder les couleurs vives même si on change le fond de l'app)
+            if (useSolidBackground) {
+                ctx.save();
+                ctx.globalAlpha = globalFadeOpacity;
+                ctx.fillStyle = "black";
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // 3. LE FILTRE FINAL ET LE RENDU
+            let totalAlpha = finalAlpha * globalFadeOpacity;
+            if (activeSnapshot) totalAlpha *= window.resultZonesOpacity;
+            
+            ctx.globalAlpha = totalAlpha;
+            ctx.fillStyle = finalColor;
+            ctx.fill();
+        }
+
+        // --- ANIMATION ET DESSIN DES BORDURES (CHRONO MIROIR) ---
+        if (window.bordureAnimStart === undefined) window.bordureAnimStart = 0;
+        
+        // On calcule où on en est dans le temps (entre 0 et 1)
+        let elapsed = performance.now() - window.bordureAnimStart;
+        let t = Math.min(1, elapsed / BORDURES_FADE_MS);
+        
+        // Maillon magique : la courbe de lissage (Douce au début, douce à la fin)
+        // C'est cette formule qui crée le "ralenti" identique dans les deux sens
+        let smoothStep = t * t * (3 - 2 * t);
+        
+        // On applique le sens : soit on va vers 1, soit on revient vers 0
+        window.borduresProgress = (config.style === 'BORDURES ON') ? smoothStep : 1 - smoothStep;
+
+        // DETECTION DE FIN POUR LE FADE OUT DES TRAITS
+        if (isModePreview && !activeSnapshot && !window.isPreviewDispersion && !isNeonFlickering && window.bordureAnimStart !== 0) {
+            // On ne déclenche que si on est dans le menu des bordures (tours de 800ms)
+            if (elapsed >= BORDURES_FADE_MS && !window.bordureFadeTriggered) {
+                window.bordureFadeTriggered = true; 
+                lancerFermeturePreview(DUREE_MAINTIEN_PREVIEW_PARAMETRE_TRAITS);
+            }
+        }
+
+        if (window.borduresProgress > 0.001) {
+            ctx.save();
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 12;
+            ctx.lineCap = 'round';
+            // On force l'opacité à 1.0 quoi qu'il arrive
+            ctx.globalAlpha = 1.0; 
+            currentAngles.forEach((angle, idx) => {
                 ctx.beginPath();
                 ctx.moveTo(centerX, centerY);
-                ctx.arc(centerX, centerY, visualRadius, start, end < start ? end + Math.PI * 2 : end);
+                
+                let longueur = baseRadius; // Taille par défaut pour le mode jeu normal
 
-                if (isCurrentActive || isWinner) {
-                    // On utilise maintenant l'intensité précise du pattern [durée, opacité]
-                    if (isWinner && isNeonFlickering) {
-                        ctx.globalAlpha = currentNeonOpacity;
-                    } else {
-                        ctx.globalAlpha = 1.0;
-                    }
-                    ctx.fillStyle = closestTouch.color;
-                } else {
-                    ctx.globalAlpha = 1.0;
-                    ctx.fillStyle = "white";
-                    ctx.fill();
-                    ctx.globalAlpha = (isSpinning || winnerId) ? ROUE_OPACITE_INACTIF : 1.0;
-                    ctx.fillStyle = closestTouch.color;
+                if (isModePreview) {
+                    // On définit l'ordre des séparations selon tes mesures (index 0 à 4)
+                    // Ordre des zones Preview : Bleu(0), Vert(1), Rouge(2), Menthe(3), Jaune(4)
+                    const mesures = [
+                        BORDURES_LONGUEURS_CUSTOM["bleu/vert"],   // Bordure entre Bleu et Vert
+                        BORDURES_LONGUEURS_CUSTOM["vert/rouge"],  // Bordure entre Vert et Rouge
+                        BORDURES_LONGUEURS_CUSTOM["rouge/menthe"], // Bordure entre Rouge et Menthe
+                        BORDURES_LONGUEURS_CUSTOM["menthe/jaune"], // Bordure entre Menthe et Jaune
+                        BORDURES_LONGUEURS_CUSTOM["jaune/bleu"]    // Bordure entre Jaune et Bleu
+                    ];
+                    longueur = mesures[idx] || baseRadius;
                 }
-                ctx.fill();
-            }
-            ctx.globalAlpha = 1.0;
-            drawLines();
+
+                const lineX = centerX + Math.cos(angle) * (longueur * window.borduresProgress);
+                const lineY = centerY + Math.sin(angle) * (longueur * window.borduresProgress);
+                ctx.lineTo(lineX, lineY);
+                ctx.stroke();
+             });
+             ctx.restore();
         }
+    }
+
+    // --- DESSIN DES FEEDBACKS (POINTS) ---
+    if ((config.mode === 'ORDRE DU TOUR' || isModePreview) && currentWinnerId !== null) {
+        const isPreviewOrdre = (isModePreview && config.mode === 'ORDRE DU TOUR');
+        
+        // On récupère les bordures (currentAngles) calculées plus haut dans le draw
+        let separators = [];
+        let sorted = [...dataSource].sort((a, b) => a.angle - b.angle);
+        for (let i = 0; i < sorted.length; i++) {
+            let current = sorted[i];
+            let next = sorted[(i + 1) % sorted.length];
+            let diff = next.angle - current.angle;
+            if (diff < 0) diff += Math.PI * 2;
+            separators.push(current.angle + diff / 2);
+        }
+
+        dataSource.forEach((t, index) => {
+            if (isPreviewOrdre || (config.mode === 'ORDRE DU TOUR' && !isModePreview)) {
+                const orderIndex = isPreviewOrdre ? index : dataSource.map(d => d.id.toString()).indexOf(t.id.toString());
+                
+                // On trouve les deux séparateurs qui entourent ce point d'ancrage
+                let startSep = separators.find((s, i) => {
+                    let nextS = separators[(i + 1) % separators.length];
+                    let angle = t.angle;
+                    let diff = angle - s;
+                    while (diff < 0) diff += Math.PI * 2;
+                    let span = nextS - s;
+                    while (span <= 0) span += Math.PI * 2;
+                    return diff >= 0 && diff < span;
+                });
+                let sepIdx = separators.indexOf(startSep);
+                let endSep = separators[(sepIdx + 1) % separators.length];
+
+                if (isModePreview) {
+                // Suppression des points en mode preview (on ne dessine rien)
+                } else {
+                    // --- NOUVELLE ERGONOMIE DU DOIGT ---
+                    // On part de la position physique du doigt sur l'écran
+                    let finalX = t.x;
+                    let finalY = t.y;
+                    
+                    // 1. Force Centrifuge : Tirer vers le centre de la table
+                    let dx = centerX - t.x;
+                    let dy = centerY - t.y;
+                    let distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance > 0) {
+                        finalX += (dx / distance) * FEEDBACK_CENTRIFUGE_FORCE;
+                        finalY += (dy / distance) * FEEDBACK_CENTRIFUGE_FORCE;
+                    }
+                    
+                    // 2. Décalage visuel (pulpe du doigt)
+                    finalY -= FEEDBACK_VISUAL_OFFSET;
+                    
+                    drawFeedback(finalX, finalY, orderIndex);
+                }
+            }
+        });
+    }
+
+    // --- AFFICHAGE DE LA DISPERSION (PREVIEW SYSTÈME) ---
+    if (isModePreview && window.isPreviewDispersion) {
+        ctx.save();
+        
+        // Cerveau dynamique : on lit directement l'étiquette "count" de chaque zone
+        // Si tu changes les couleurs du menu, l'animation s'adaptera automatiquement
+        dataSource.forEach(targetTouch => {
+            if (targetTouch.id.startsWith("ghost") && targetTouch.count) {
+                // count va de 1 à 5, on fait -1 pour avoir l'index de 0 à 4 (Cercle à Pentagone)
+                const rankIdx = targetTouch.count - 1; 
+                const targetPos = calculateZoneBarycenter(targetTouch.angle);
+                
+                const curX = centerX + (targetPos.x - centerX) * window.dispersionProgress;
+                const curY = centerY + (targetPos.y - centerY) * window.dispersionProgress;
+                
+                ctx.globalAlpha = globalFadeOpacity;
+                drawFeedback(curX, curY, rankIdx);
+            }
+        });
+        ctx.restore();
     }
     requestAnimationFrame(draw);
 }
 draw();
+
+// --- LE BOUCLIER ANTI-FANTÔME (SÉCURITÉ SYSTÈME) ---
+
+// 1. Bloque le menu "clic droit" qui s'active au contact long
+window.oncontextmenu = function(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    return false;
+};
+
+// 2. Sécurité : si l'utilisateur quitte l'app ou qu'une notification arrive
+window.addEventListener('blur', () => {
+    touches = [];
+    touchColorMap = {};
+    fixedZones = [];
+    isSpinning = false;
+    winnerId = null;
+    currentActiveId = null;
+});
+
+// 3. On force le nettoyage si la fenêtre est masquée
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        touches = [];
+        touchColorMap = {};
+        isSpinning = false;
+    }
+});
 </script>
 </body>
 </html>
