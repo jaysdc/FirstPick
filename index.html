@@ -102,7 +102,7 @@
         <div id="splash-content">
             <h1 id="splash-title">First Pick</h1>
             <div id="splash-button-container">
-                <img src="Bouton_Accueil_OFF.jpg" id="splash-btn-img" alt="Start">
+                <img src="Bouton_Accueil_OFF.png" id="splash-btn-img" alt="Start">
             </div>
         </div>
     </div>
@@ -270,8 +270,8 @@ const FEEDBACK_PREVIEW_PARAMETRE_DOT_SIZE = 6;  // Taille du rayon des points (e
 
 const splash = document.getElementById('splash-screen');
 const splashBtn = document.getElementById('splash-btn-img');
-const imgOn = new Image(); imgOn.src = "Bouton_Accueil_ON.jpg";
-const imgDemi = new Image(); imgDemi.src = "Bouton_Accueil_DEMI.jpg";
+const imgOn = new Image(); imgOn.src = "Bouton_Accueil_ON.png";
+const imgDemi = new Image(); imgDemi.src = "Bouton_Accueil_DEMI.png";
 let hasStarted = false;
 
 const canvas = document.getElementById('canvas');
@@ -449,7 +449,7 @@ function showToast(msg) {
 splashBtn.addEventListener('touchstart', (e) => {
     if (hasStarted) return;
     e.preventDefault();
-    splashBtn.src = "Bouton_Accueil_ON.jpg";
+    splashBtn.src = "Bouton_Accueil_ON.png";
     if (audioCtx) {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         const source = audioCtx.createBufferSource();
@@ -463,7 +463,7 @@ splashBtn.addEventListener('touchstart', (e) => {
 splashBtn.addEventListener('touchend', (e) => {
     if (hasStarted) return;
     hasStarted = true;
-    splashBtn.src = "Bouton_Accueil_DEMI.jpg";
+    splashBtn.src = "Bouton_Accueil_DEMI.png";
     setTimeout(() => {
         splash.classList.add('splash-exit');
         setTimeout(() => {
