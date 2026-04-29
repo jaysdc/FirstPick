@@ -50,12 +50,63 @@
         z-index: 1; /* Derrière le canvas */
         pointer-events: none; /* Ignore le tactile */
     }
+
+    #splash-screen {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background-color: #000;
+        z-index: 10000; /* Au-dessus de tout */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: transform 0.8s cubic-bezier(0.85, 0, 0.15, 1); /* Animation de scroll pro */
+    }
+
+    #splash-content {
+        text-align: center;
+        /* Font San Francisco / Système Apple */
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    #splash-title {
+        color: #fff;
+        font-size: 48px;
+        font-weight: 700;
+        margin-bottom: 40px;
+        letter-spacing: -1px;
+    }
+
+    #splash-button-container {
+        width: 220px; /* À ajuster selon tes images */
+        height: 220px;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    #splash-btn-img {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    /* La classe qui fera s'envoler l'écran */
+    .splash-exit {
+        transform: translateY(-100%);
+    }
+
 </style>
 </head>
 <body>
+    <div id="splash-screen">
+        <div id="splash-content">
+            <h1 id="splash-title">First Pick</h1>
+            <div id="splash-button-container">
+                <img src="Bouton_Accueil_OFF.jpg" id="splash-btn-img" alt="Start">
+            </div>
+        </div>
+    </div>
     <div id="debug-ui">Configuration...</div>
-    
-    <button id="audio-unlocker" style="position:fixed; top:0; left:0; width:100%; height:100%; opacity:0; z-index:9999; border:none;"></button>
     
     <canvas id="canvas"></canvas>
     <div id="ios-fix">Fixing iOS Safe Area Transparency Workaround - Ghost Text Activation</div>
@@ -93,7 +144,10 @@ function mixColors(color1, color2, weight) {
     return `rgb(${r}, ${g}, ${b})`;
 }
 
-// --- CONFIGURATION ---
+// --- CONFIGURATION SPLASH SCREEN ---
+const DURATION_BEFORE_SPLASH_SCREEN_ANIMATION = 500; // Temps d'attente après le clic (ms)
+
+// --- CONFIGURATION DE LA DUREE POUR SAVOIR DETECTER SI C'EST UN CHANGEMENT DE PARAMETRE ---
 const TAP_MAX_DURATION = 150;    
 const MULTI_TAP_WINDOW = 150;
 
@@ -141,7 +195,10 @@ const ROUE_OPACITE_INACTIF = 0.35;
 const ROUE_RESET_DELAY = 0; // <--- TA VARIABLE (0 = instantané, 400 = délai actuel)
 
 // --- RÉGLAGE DU MODE PARAMETRE LORSQU'IL N'Y A QU'UN CONTACT SUR L'ECRAN, VITESSE DU CYCLE DES COULEURS ---
-const CYCLE_VITESSE_MS = 1200; // Vitesse de la respiration (en ms). 3000 = 3 secondes.
+const CYCLE_VITESSE_MS = 1500; // Vitesse de la respiration (en ms). 3000 = 3 secondes.
+
+// La playlist des couleurs pour le mode PARAMETRE 1 doigt
+const CYCLE_COULEURS = ['#FF4646', '#FF8F4D', '#FFFF42', '#75FE71', '#2FFFFC', '#1e6eff', '#CF3BFC', '#FFAFFF'];
 
 // --- RÉGLAGES DU FINAL (SUSPENSE) ---
 const ROUE_CHANCE_REUSSITE = 50;    // % de chance de passer le dernier picot
@@ -174,7 +231,7 @@ const FAMILLES = [
     ['#75FE71'], // 5: Vert clair (VIP)
     ['#03FD9C'], // 6: Menthe
     ['#2FFFFC'], // 7: Cyan
-    ['#3BBFCE'], // 8: Bleu (VIP)
+    ['#1e6eff'], // 8: Bleu (VIP)
     ['#CF3BFC'], // 9: Violet
     ['#FFAFFF']  // 10: Rose
 ];
@@ -211,7 +268,11 @@ const BORDURES_LONGUEURS_CUSTOM = {
 
 const FEEDBACK_PREVIEW_PARAMETRE_DOT_SIZE = 6;  // Taille du rayon des points (ex: 8)
 
-const unlocker = document.getElementById('audio-unlocker');
+const splash = document.getElementById('splash-screen');
+const splashBtn = document.getElementById('splash-btn-img');
+const imgOn = new Image(); imgOn.src = "Bouton_Accueil_ON.jpg";
+const imgDemi = new Image(); imgDemi.src = "Bouton_Accueil_DEMI.jpg";
+let hasStarted = false;
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
@@ -384,8 +445,11 @@ function showToast(msg) {
 }
 
 
-unlocker.addEventListener('touchstart', (e) => {
+// ACTION QUAND ON APPUIE (IMAGE ENFONCÉE)
+splashBtn.addEventListener('touchstart', (e) => {
+    if (hasStarted) return;
     e.preventDefault();
+    splashBtn.src = "Bouton_Accueil_ON.jpg";
     if (audioCtx) {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         const source = audioCtx.createBufferSource();
@@ -393,15 +457,20 @@ unlocker.addEventListener('touchstart', (e) => {
         source.connect(audioCtx.destination);
         source.start(0);
     }
-    unlocker.remove();
-    const canvasEv = new TouchEvent('touchstart', {
-        cancelable: true, bubbles: true,
-        touches: Array.from(e.touches),
-        targetTouches: Array.from(e.targetTouches),
-        changedTouches: Array.from(e.changedTouches)
-    });
-    canvas.dispatchEvent(canvasEv);
-});
+}, { passive: false });
+
+// ACTION QUAND ON RELÂCHE (IMAGE ENCLENCHÉE + DÉPART)
+splashBtn.addEventListener('touchend', (e) => {
+    if (hasStarted) return;
+    hasStarted = true;
+    splashBtn.src = "Bouton_Accueil_DEMI.jpg";
+    setTimeout(() => {
+        splash.classList.add('splash-exit');
+        setTimeout(() => {
+            splash.remove();
+        }, 800);
+    }, DURATION_BEFORE_SPLASH_SCREEN_ANIMATION);
+}, { passive: false });
 
 canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
@@ -977,15 +1046,16 @@ function draw() {
     if (dataSource.length === 1) {
         ctx.globalAlpha = globalFadeOpacity;
         
-        // --- LOGIQUE DE CYCLE "GOOGLE" (Respiration) ---
-        // On utilise maintenant ta manette située en haut du code
+        // --- LOGIQUE DE CYCLE (Respiration) ---
         const temps = performance.now() / CYCLE_VITESSE_MS;
         
-        const indexActuel = Math.floor(temps % FAMILLES.length);
-        const indexSuivant = (indexActuel + 1) % FAMILLES.length;
+        // On utilise la nouvelle liste CYCLE_COULEURS
+        const indexActuel = Math.floor(temps % CYCLE_COULEURS.length);
+        const indexSuivant = (indexActuel + 1) % CYCLE_COULEURS.length;
         const progression = temps % 1; 
 
-        const couleurVivante = mixColors(FAMILLES[indexActuel][0], FAMILLES[indexSuivant][0], progression);
+        // On mélange les deux couleurs sélectionnées dans la nouvelle liste
+        const couleurVivante = mixColors(CYCLE_COULEURS[indexActuel], CYCLE_COULEURS[indexSuivant], progression);
         
         ctx.fillStyle = couleurVivante;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
