@@ -54,27 +54,40 @@
     #splash-screen {
         position: fixed;
         top: 0; left: 0;
-        width: 100%; height: 100%;
+        width: 100%;
+        height: 100%;
         background-color: #000;
-        z-index: 10000; /* Au-dessus de tout */
+        z-index: 10000;
         display: flex;
         justify-content: center;
         align-items: center;
-        transition: transform 0.8s cubic-bezier(0.85, 0, 0.15, 1); /* Animation de scroll pro */
+        /* COMPENSATION DE LA SAFE AREA BASSE */
+        padding-top: env(safe-area-inset-bottom);
+        box-sizing: border-box;
+        transition: transform 0.8s cubic-bezier(0.85, 0, 0.15, 1);
     }
 
     #splash-content {
         text-align: center;
-        /* Font San Francisco / Système Apple */
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
     }
 
     #splash-title {
         color: #fff;
         font-size: 48px;
         font-weight: 700;
-        margin-bottom: 40px;
         letter-spacing: -1px;
+        position: absolute;
+        /* On le place au-dessus du bouton */
+        bottom: 100%; 
+        /* La marge (GAP) est définie ici */
+        margin-bottom: 60px; 
+        white-space: nowrap;
     }
 
     #splash-button-container {
@@ -118,7 +131,7 @@ function debugLog(msg, color = "red") {
 }
 
 // --- LE JUKEBOX (CONFIGURATION & PRECHARGEMENT PRIORITAIRE) ---
-const SONS_A_CHARGER = ['tick1.wav', 'bouton1.wav']; 
+const SONS_A_CHARGER = ['tick1.wav', 'bouton1.wav', 'light_ON.wav']; 
 let audioCtx = null;
 let soundLibrary = {}; 
 
@@ -163,6 +176,7 @@ function mixColors(color1, color2, weight) {
 
 // --- CONFIGURATION SPLASH SCREEN ---
 const DURATION_BEFORE_SPLASH_SCREEN_ANIMATION = 500; // Temps d'attente après le clic (ms)
+const DUREE_ANIMATION_BOUTON_SPLASH = 75; // Temps en ms avant la remontée automatique
 
 // --- CONFIGURATION DE LA DUREE POUR SAVOIR DETECTER SI C'EST UN CHANGEMENT DE PARAMETRE ---
 const TAP_MAX_DURATION = 150;    
@@ -178,8 +192,8 @@ const DUREE_MAINTIEN_PREVIEW_PARAMETRE_TRAITS = 0.3; // Temps après que les tra
 const DUREE_MAINTIEN_PREVIEW_PARAMETRE_DOTS = 1.0;
 
 // --- SYSTÈME DE RÉSULTAT (3 PHASES) ---
-const DUREE_POSE_ELU = 1.0;       // Phase 2 : Maintien (secondes)
-const DUREE_POSE_ORDRE = 2.0;     // Phase 2 : Maintien (secondes)
+const DUREE_POSE_ELU = 1.5;       // Phase 2 : Maintien (secondes)
+const DUREE_POSE_ORDRE = 3.0;     // Phase 2 : Maintien (secondes)
 const DUREE_FADE_ZONES_ELU = 0.3; // Phase 3 : Fondu (secondes)
 const DUREE_FADE_ZONES_ORDRE = 0.3; // Phase 3 : Fondu (secondes)
 
@@ -211,10 +225,10 @@ const ROUE_RALENTI_MAX = 1.3;       // Multiplicateur max
 const ROUE_OPACITE_INACTIF = 0.35;
 const ROUE_RESET_DELAY = 0; // <--- TA VARIABLE (0 = instantané, 400 = délai actuel)
 
-// --- RÉGLAGE DU MODE PARAMETRE LORSQU'IL N'Y A QU'UN CONTACT SUR L'ECRAN, VITESSE DU CYCLE DES COULEURS ---
+// --- RÉGLAGE DE LA VITSSE DE CYCLAGE DES COULUERS EN MODE PARAMETRE (UN CONTACT SUR L'ECRAN) ---
 const CYCLE_VITESSE_MS = 1500; // Vitesse de la respiration (en ms). 3000 = 3 secondes.
 
-// La playlist des couleurs pour le mode PARAMETRE 1 doigt
+// --- LISTE DES COULEURS A CYCLER QUAND LE MODE PARAMETRE EST ACTIF ---
 const CYCLE_COULEURS = ['#FF4646', '#FF8F4D', '#FFFF42', '#75FE71', '#2FFFFC', '#1e6eff', '#CF3BFC', '#FFAFFF'];
 
 // --- RÉGLAGES DU FINAL (SUSPENSE) ---
@@ -224,17 +238,26 @@ const ROUE_REBOND_MAX = 1000;       // Silence long (ms)
 
 // --- PARAMÈTRES FEEDBACK (TWEAK) ---
 const FEEDBACK_TYPE = 'FORMES';      // 'FORMES' ou 'POINTS'
-const FEEDBACK_FORMES_SIZE = 100;     // Taille des formes (Carré, Triangle...)
-const FEEDBACK_POINTS_DIAMETRE = 100; // Diamètre du cercle de rotation des points
+const FEEDBACK_FORMES_SIZE = 80;     // Taille des formes (Carré, Triangle...)
+const FEEDBACK_POINTS_DIAMETRE = 80; // Diamètre du cercle de rotation des points
 const FEEDBACK_THICKNESS = 12;        // Épaisseur des traits
-const FEEDBACK_CENTRIFUGE_FORCE = 30; // Pixels de décalage vers le centre (à tweaker)
-const FEEDBACK_VISUAL_OFFSET = 15;    // Décalage vers le haut (en pixels) pour le ressenti
 const FEEDBACK_ROTATION_TPS = 0.1;    // Vitesse en TOURS PAR SECONDE (Ex: 0.5 = 180°/s)
 const FEEDBACK_ORBIT_DOTS_GROUPS = 3; // Nombre de groupes de points (X)
 const BORDURES_FADE_MS = 300; // Durée exacte du mouvement en MILLISECONDES des TRAITS qui se retractent ou sortent
 let activeSnapshot = null;            // Le stockage de notre "photo"
 let modePreviewTimer = null;
 let isModePreview = false;
+
+// --- TAILLE DES FORMES GEOMETRIQUES ET DES CERCLES DE POINTS QUAND ON AFFICHE LE RESULTAT D'UN TIRAGE ---
+const GAME_FORMES_SIZE = 110;         // Taille des formes (EN JEU)
+const GAME_POINTS_DIAMETRE = 110;     // Diamètre des points (EN JEU)
+
+// --- PARAMETRES DE TRANSITION CROSSFADE (MENU POINTS/FORMES) ---
+const CROSSFADE_START_DELAY_MS = 150;    // Délai avant lancement de l'apparition (croisement)
+const CROSSFADE_SHRINK_FORMES = 0.5;     // Réduction visée des formes (0.5 = 50% de sa taille)
+const CROSSFADE_SHRINK_POINTS = 0.5;     // Réduction visée des points (0.5 = 50% de sa taille)
+const CROSSFADE_DUREE_FORMES_MS = 400;   // Durée d'animation des formes (réduction + fondu)
+const CROSSFADE_DUREE_POINTS_MS = 400;   // Durée d'animation des points (réduction + fondu)
 
 let fixedZones = []; // Stockage des séparations fixes
 
@@ -244,11 +267,11 @@ const FAMILLES = [
     ['#E76363'], // 1: Corail
     ['#FF8F4D'], // 2: Orange
     ['#FFFF42'], // 3: Jaune (VIP)
-    ['#A8FE3A'], // 4: Vert citron
-    ['#75FE71'], // 5: Vert clair (VIP)
-    ['#03FD9C'], // 6: Menthe
-    ['#2FFFFC'], // 7: Cyan
-    ['#1e6eff'], // 8: Bleu (VIP)
+    ['#bdff22'], // 4: Vert citron
+    ['#0bf500'], // 5: Vert clair (VIP)
+    ['#01ffce'], // 6: Menthe
+    ['#00eaff'], // 7: Cyan
+    ['#00AEEF'], // 8: Bleu (VIP)
     ['#CF3BFC'], // 9: Violet
     ['#FFAFFF']  // 10: Rose
 ];
@@ -282,7 +305,7 @@ const BORDURES_LONGUEURS_CUSTOM = {
     "jaune/bleu": 416,
     "bleu/vert": 250,
     "vert/rouge": 268,
-    "rouge/menthe": 415,
+    "rouge/menthe": 420,
     "menthe/jaune": 192
 };
 
@@ -380,23 +403,33 @@ function handleSettings(count) {
         }
     } 
     else if (count === 3) {
+        const oldSystem = config.system;
         config.system = config.system === 'POINTS' ? 'FORMES' : 'POINTS';
         isModePreview = true;
-        window.isPreviewDispersion = true;
-        window.dispersionProgress = 0;
-
-        const animStart = performance.now();
-        const animDuration = 600; 
+        
+        window.isPreviewDispersion = true; // On garde ton drapeau de sécurité
+        window.dispersionOldSystem = oldSystem;
+        window.dispersionNewSystem = config.system;
+        window.dispersionStartTime = performance.now();
 
         function animateDispersion() {
             const now = performance.now();
-            const elapsed = now - animStart;
-            const t = Math.min(1, elapsed / animDuration);
-            window.dispersionProgress = t * t * (3 - 2 * t);
+            const elapsed = now - window.dispersionStartTime;
 
-            if (t < 1 && window.isPreviewDispersion) {
+            const oldDuration = window.dispersionOldSystem === 'FORMES' ? CROSSFADE_DUREE_FORMES_MS : CROSSFADE_DUREE_POINTS_MS;
+            const newDuration = window.dispersionNewSystem === 'FORMES' ? CROSSFADE_DUREE_FORMES_MS : CROSSFADE_DUREE_POINTS_MS;
+
+            // Progrès de l'ancien état (Fade out & Shrink) : de 0 à 1
+            window.dispersionOldProgress = Math.min(1, elapsed / oldDuration);
+            
+            // Progrès du nouvel état avec délai (Fade in & Grow) : de 0 à 1
+            const newElapsed = Math.max(0, elapsed - CROSSFADE_START_DELAY_MS);
+            window.dispersionNewProgress = Math.min(1, newElapsed / newDuration);
+
+            if (window.dispersionNewProgress < 1 && window.isPreviewDispersion) {
                 requestAnimationFrame(animateDispersion);
-            } else if (t >= 1) {
+            } else if (window.dispersionNewProgress >= 1) {
+                window.isPreviewDispersion = false;
                 lancerFermeturePreview(DUREE_MAINTIEN_PREVIEW_PARAMETRE_DOTS);
             }
         }
@@ -419,13 +452,16 @@ function showToast(msg) {
     window.toastTimer = setTimeout(() => { ui.style.color = "transparent"; }, 1500);
 }
 
-
 // ACTION QUAND ON APPUIE (PUSHED)
 splashBtn.addEventListener('touchstart', (e) => {
     if (hasStarted) return;
     e.preventDefault();
     
+    // L'animation visuelle devient autonome
     splashBtn.src = "Bouton_Accueil_DEMI.png"; 
+    setTimeout(() => {
+        splashBtn.src = "Bouton_Accueil_ON.png";
+    }, DUREE_ANIMATION_BOUTON_SPLASH);
 
     if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
@@ -437,8 +473,6 @@ splashBtn.addEventListener('touchstart', (e) => {
 splashBtn.addEventListener('touchend', (e) => {
     if (hasStarted) return;
     hasStarted = true;
-    
-    splashBtn.src = "Bouton_Accueil_ON.png";
     
     // Deuxieme declenchement du son
     playTick('bouton1.wav');
@@ -818,6 +852,7 @@ function triggerPointsNeonEffect() {
     for (let i = 0; i < 5; i++) {
         setTimeout(() => {
             window.ordreNeonStates[i] = 1.0;
+            playTick('light_ON.wav'); // L'étincelle sonore synchronisée
             
             // Si c'est la dernière zone (la 5ème, donc index 4), on lance la fermeture
             if (i === 4) {
@@ -828,12 +863,8 @@ function triggerPointsNeonEffect() {
 }
 
 function drawFeedback(x, y, index) {
-    // Si index est 0, rank sera 1. Si index est 1, rank sera 2.
     const rank = index + 1;
     
-    // CALCUL PROFESSIONNEL DE LA ROTATION
-    // performance.now() donne le temps en ms depuis le chargement de la page
-    // (tours_par_sec * 2PI) / 1000ms = angle parcouru par milliseconde
     const time = performance.now();
     const rotationAngle = time * (FEEDBACK_ROTATION_TPS * Math.PI * 2) / 1000;
     
@@ -846,30 +877,42 @@ function drawFeedback(x, y, index) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Utilise la config dynamique du menu, ou la variable par défaut POINTS/FORMES
-    const currentStyle = config.system || FEEDBACK_TYPE;
+    // Override global ou Choix intelligent
+    const currentStyle = window.overrideFeedbackStyle || config.system || FEEDBACK_TYPE;
+    let currentSize = isModePreview ? FEEDBACK_FORMES_SIZE : GAME_FORMES_SIZE;
+    let currentDiam = isModePreview ? FEEDBACK_POINTS_DIAMETRE : GAME_POINTS_DIAMETRE;
+
+    // Application du Scale d'animation si défini
+    if (window.overrideFeedbackScale !== undefined) {
+        currentSize *= window.overrideFeedbackScale;
+        currentDiam *= window.overrideFeedbackScale;
+    }
+
+    // Application de l'opacité d'animation si définie
+    const activeAlpha = window.overrideFeedbackAlpha !== undefined ? window.overrideFeedbackAlpha : globalFadeOpacity;
+    ctx.globalAlpha = activeAlpha;
 
     if (currentStyle === 'FORMES') { 
         ctx.beginPath();
         if (rank === 1) { // CERCLE
-            ctx.arc(0, 0, FEEDBACK_FORMES_SIZE / 2, 0, Math.PI * 2);
+            ctx.arc(0, 0, currentSize / 2, 0, Math.PI * 2);
         } else if (rank === 2) { // CROIX
-            const s = FEEDBACK_FORMES_SIZE / 2;
+            const s = currentSize / 2;
             ctx.moveTo(-s, -s); ctx.lineTo(s, s);
             ctx.moveTo(s, -s); ctx.lineTo(-s, s);
         } else if (rank === 3) { // TRIANGLE
             for (let i = 0; i < 3; i++) {
                 const a = (i / 3) * Math.PI * 2 - Math.PI / 2;
-                ctx.lineTo(Math.cos(a) * (FEEDBACK_FORMES_SIZE / 1.5), Math.sin(a) * (FEEDBACK_FORMES_SIZE / 1.5));
+                ctx.lineTo(Math.cos(a) * (currentSize / 1.5), Math.sin(a) * (currentSize / 1.5));
             }
             ctx.closePath();
         } else if (rank === 4) { // CARRÉ
-            const s = FEEDBACK_FORMES_SIZE / 2;
-            ctx.rect(-s, -s, FEEDBACK_FORMES_SIZE, FEEDBACK_FORMES_SIZE);
+            const s = currentSize / 2;
+            ctx.rect(-s, -s, currentSize, currentSize);
         } else { // PENTAGONE
             for (let i = 0; i < 5; i++) {
                 const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
-                ctx.lineTo(Math.cos(a) * (FEEDBACK_FORMES_SIZE / 1.5), Math.sin(a) * (FEEDBACK_FORMES_SIZE / 1.5));
+                ctx.lineTo(Math.cos(a) * (currentSize / 1.5), Math.sin(a) * (currentSize / 1.5));
             }
             ctx.closePath();
         }
@@ -882,13 +925,13 @@ function drawFeedback(x, y, index) {
             const groupAngle = (g / groups) * Math.PI * 2;
             for (let d = 0; d < rank; d++) {
                 const dotAngle = groupAngle + (d * 0.25); 
-                // Utilisation du nouveau paramètre DIAMETRE ici :
-                const dx = Math.cos(dotAngle) * (FEEDBACK_POINTS_DIAMETRE / 2);
-                const dy = Math.sin(dotAngle) * (FEEDBACK_POINTS_DIAMETRE / 2);
+                const dx = Math.cos(dotAngle) * (currentDiam / 2);
+                const dy = Math.sin(dotAngle) * (currentDiam / 2);
                 ctx.beginPath();
                 ctx.arc(dx, dy, dotRadius, 0, Math.PI * 2);
                 ctx.save();
-                ctx.globalAlpha = globalFadeOpacity; 
+                // Ici, on obéit aussi au forçage d'opacité
+                ctx.globalAlpha = activeAlpha; 
                 ctx.fillStyle = 'black';
                 ctx.fill();
                 ctx.restore();
@@ -990,7 +1033,7 @@ function draw() {
         ];
 
         // MENU VITRINE (Modifiable ici) : Bleu(8), Vert clair(5), Rouge(0), Menthe(6), Jaune(3)
-        const organicFamilies = [8, 5, 0, 6, 3];
+        const organicFamilies = [8, 5, 0, 10, 3];
         // Attribution des points : Bleu=5, Vert=3, Rouge=1, Menthe=4, Jaune=2
         const customCounts = [5, 3, 1, 4, 2];
 
@@ -1219,47 +1262,74 @@ function draw() {
                 if (isModePreview) {
                 // Suppression des points en mode preview (on ne dessine rien)
                 } else {
-                    // --- NOUVELLE ERGONOMIE DU DOIGT ---
-                    // On part de la position physique du doigt sur l'écran
-                    let finalX = t.x;
-                    let finalY = t.y;
-                    
-                    // 1. Force Centrifuge : Tirer vers le centre de la table
-                    let dx = centerX - t.x;
-                    let dy = centerY - t.y;
-                    let distance = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (distance > 0) {
-                        finalX += (dx / distance) * FEEDBACK_CENTRIFUGE_FORCE;
-                        finalY += (dy / distance) * FEEDBACK_CENTRIFUGE_FORCE;
-                    }
-                    
-                    // 2. Décalage visuel (pulpe du doigt)
-                    finalY -= FEEDBACK_VISUAL_OFFSET;
-                    
-                    drawFeedback(finalX, finalY, orderIndex);
+                    // --- POSITION EXACTE ---
+                    drawFeedback(t.x, t.y, orderIndex);
                 }
             }
         });
     }
 
-    // --- AFFICHAGE DE LA DISPERSION (PREVIEW SYSTÈME) ---
+    // --- AFFICHAGE DU CROSSFADE (PREVIEW SYSTÈME) ---
     if (isModePreview && window.isPreviewDispersion) {
         ctx.save();
         
-        // Cerveau dynamique : on lit directement l'étiquette "count" de chaque zone
-        // Si tu changes les couleurs du menu, l'animation s'adaptera automatiquement
+        const PREVIEW_TARGETS_PHYSICAL = {
+            0: { x: 703, y: 565 },
+            1: { x: 910, y: 1156 },
+            2: { x: 643, y: 1661 },
+            3: { x: 219, y: 1320 },
+            4: { x: 200, y: 857 }
+        };
+
+        const pixelRatio = window.devicePixelRatio || 1;
+        
         dataSource.forEach(targetTouch => {
             if (targetTouch.id.startsWith("ghost") && targetTouch.count) {
-                // count va de 1 à 5, on fait -1 pour avoir l'index de 0 à 4 (Cercle à Pentagone)
                 const rankIdx = targetTouch.count - 1; 
-                const targetPos = calculateZoneBarycenter(targetTouch.angle);
+                const ghostIndex = parseInt(targetTouch.id.replace("ghost", ""), 10);
                 
-                const curX = centerX + (targetPos.x - centerX) * window.dispersionProgress;
-                const curY = centerY + (targetPos.y - centerY) * window.dispersionProgress;
+                let targetPos = { x: centerX, y: centerY };
+                if (PREVIEW_TARGETS_PHYSICAL[ghostIndex] !== undefined) {
+                    targetPos.x = PREVIEW_TARGETS_PHYSICAL[ghostIndex].x / pixelRatio;
+                    targetPos.y = PREVIEW_TARGETS_PHYSICAL[ghostIndex].y / pixelRatio;
+                } else {
+                    targetPos = calculateZoneBarycenter(targetTouch.angle);
+                }
                 
-                ctx.globalAlpha = globalFadeOpacity;
-                drawFeedback(curX, curY, rankIdx);
+                // 1. DESSIN DE L'ANCIEN ETAT (FADE OUT & SHRINK)
+                if (window.dispersionOldProgress !== undefined && window.dispersionOldProgress < 1) {
+                    const tOld = window.dispersionOldProgress;
+                    const smoothOld = tOld * tOld * (3 - 2 * tOld); // Lissage pro
+                    const shrinkTarget = window.dispersionOldSystem === 'FORMES' ? CROSSFADE_SHRINK_FORMES : CROSSFADE_SHRINK_POINTS;
+                    
+                    // Scale de 1.0 descendant jusqu'à la limite visée
+                    window.overrideFeedbackScale = 1.0 - (smoothOld * (1.0 - shrinkTarget));
+                    // Opacité de 1.0 descendant vers 0.0
+                    window.overrideFeedbackAlpha = (1.0 - smoothOld) * globalFadeOpacity;
+                    window.overrideFeedbackStyle = window.dispersionOldSystem;
+                    
+                    drawFeedback(targetPos.x, targetPos.y, rankIdx);
+                }
+
+                // 2. DESSIN DU NOUVEL ETAT (FADE IN & GROW)
+                if (window.dispersionNewProgress !== undefined && window.dispersionNewProgress > 0) {
+                    const tNew = window.dispersionNewProgress;
+                    const smoothNew = tNew * tNew * (3 - 2 * tNew);
+                    const shrinkTarget = window.dispersionNewSystem === 'FORMES' ? CROSSFADE_SHRINK_FORMES : CROSSFADE_SHRINK_POINTS;
+                    
+                    // Scale montant depuis la limite visée jusqu'à 1.0
+                    window.overrideFeedbackScale = shrinkTarget + (smoothNew * (1.0 - shrinkTarget));
+                    // Opacité montant de 0.0 vers 1.0
+                    window.overrideFeedbackAlpha = smoothNew * globalFadeOpacity;
+                    window.overrideFeedbackStyle = window.dispersionNewSystem;
+                    
+                    drawFeedback(targetPos.x, targetPos.y, rankIdx);
+                }
+                
+                // 3. NETTOYAGE DES FORCAGES (Protection du reste du code)
+                window.overrideFeedbackScale = undefined;
+                window.overrideFeedbackAlpha = undefined;
+                window.overrideFeedbackStyle = undefined;
             }
         });
         ctx.restore();
