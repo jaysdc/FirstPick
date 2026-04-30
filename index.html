@@ -163,7 +163,6 @@ function mixColors(color1, color2, weight) {
 
 // --- CONFIGURATION SPLASH SCREEN ---
 const DURATION_BEFORE_SPLASH_SCREEN_ANIMATION = 500; // Temps d'attente après le clic (ms)
-const DUREE_ETAT_ON = 150; // Duree de l'image ON avant de passer à DEMI (ms)
 
 // --- CONFIGURATION DE LA DUREE POUR SAVOIR DETECTER SI C'EST UN CHANGEMENT DE PARAMETRE ---
 const TAP_MAX_DURATION = 150;    
@@ -421,32 +420,28 @@ function showToast(msg) {
 }
 
 
-// SEQUENCE AUTOMATE : AUDIO + VISUEL ON PUIS DEMI
+// ACTION QUAND ON APPUIE (PUSHED)
 splashBtn.addEventListener('touchstart', (e) => {
     if (hasStarted) return;
     e.preventDefault();
     
+    splashBtn.src = "Bouton_Accueil_DEMI.png"; 
+
     if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
     }
     
-    // Declenchement simultane Audio et Premier etat visuel
-    playTick('bouton1.wav');
-    splashBtn.src = "Bouton_Accueil_ON.png"; 
-
-    // Bascule automatique vers le deuxieme etat visuel
-    setTimeout(() => {
-        if (!hasStarted) splashBtn.src = "Bouton_Accueil_DEMI.png";
-    }, DUREE_ETAT_ON);
 }, { passive: false });
 
-// RELACHE : DECLENCHEMENT DE L'ENVOL
+// ACTION QUAND ON RELACHE (RELEASED)
 splashBtn.addEventListener('touchend', (e) => {
     if (hasStarted) return;
     hasStarted = true;
     
-    // Securite visuelle pour le depart
-    splashBtn.src = "Bouton_Accueil_DEMI.png";
+    splashBtn.src = "Bouton_Accueil_ON.png";
+    
+    // Deuxieme declenchement du son
+    playTick('bouton1.wav');
 
     setTimeout(() => {
         splash.classList.add('splash-exit');
@@ -454,13 +449,6 @@ splashBtn.addEventListener('touchend', (e) => {
             splash.remove();
         }, 800);
     }, DURATION_BEFORE_SPLASH_SCREEN_ANIMATION);
-}, { passive: false });
-
-// SECURITE APPUIS TROP LONGS
-splashBtn.addEventListener('touchcancel', (e) => {
-    if (hasStarted) return;
-    const ev = new Event('touchend');
-    splashBtn.dispatchEvent(ev);
 }, { passive: false });
 
 canvas.addEventListener('touchstart', (e) => {
