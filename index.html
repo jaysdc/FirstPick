@@ -428,7 +428,7 @@ splashBtn.addEventListener('touchstart', (e) => {
         audioCtx.resume();
     }
     
-    playTick('bouton-pushed.wav');
+    playTick('bouton_pushed.wav');
 }, { passive: false });
 
 // ACTION QUAND ON RELACHE (RELEASED)
@@ -439,7 +439,7 @@ splashBtn.addEventListener('touchend', (e) => {
     splashBtn.src = "Bouton_Accueil_ON.png";
     
     // Deuxieme declenchement du son
-    playTick('bouton-released.wav');
+    playTick('bouton_released.wav');
 
     setTimeout(() => {
         splash.classList.add('splash-exit');
