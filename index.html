@@ -118,7 +118,7 @@ function debugLog(msg, color = "red") {
 }
 
 // --- LE JUKEBOX (CONFIGURATION & PRECHARGEMENT PRIORITAIRE) ---
-const SONS_A_CHARGER = ['tick1.wav', 'bouton_pushed.wav', 'bouton_released.wav']; 
+const SONS_A_CHARGER = ['tick1.wav', 'bouton1.wav']; 
 let audioCtx = null;
 let soundLibrary = {}; 
 
@@ -428,7 +428,6 @@ splashBtn.addEventListener('touchstart', (e) => {
         audioCtx.resume();
     }
     
-    playTick('bouton_pushed.wav');
 }, { passive: false });
 
 // ACTION QUAND ON RELACHE (RELEASED)
@@ -439,7 +438,7 @@ splashBtn.addEventListener('touchend', (e) => {
     splashBtn.src = "Bouton_Accueil_ON.png";
     
     // Deuxieme declenchement du son
-    playTick('bouton_released.wav');
+    playTick('bouton1.wav');
 
     setTimeout(() => {
         splash.classList.add('splash-exit');
