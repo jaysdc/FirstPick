@@ -131,7 +131,7 @@ function debugLog(msg, color = "red") {
 }
 
 // --- LE JUKEBOX (CONFIGURATION & PRECHARGEMENT PRIORITAIRE) ---
-const SONS_A_CHARGER = ['tick1.wav', 'bouton1.wav', 'light_ON.wav']; 
+const SONS_A_CHARGER = ['tick1.wav', 'bouton1.wav', 'light_ON.wav', 'elu_ON.wav']; 
 let audioCtx = null;
 let soundLibrary = {}; 
 
@@ -243,6 +243,8 @@ const FEEDBACK_POINTS_DIAMETRE = 80; // Diamètre du cercle de rotation des poin
 const FEEDBACK_THICKNESS = 12;        // Épaisseur des traits
 const FEEDBACK_ROTATION_TPS = 0.1;    // Vitesse en TOURS PAR SECONDE (Ex: 0.5 = 180°/s)
 const FEEDBACK_ORBIT_DOTS_GROUPS = 3; // Nombre de groupes de points (X)
+const ORBIT_DOT_RADIUS = 4.5;           // Taille (rayon) de chaque petit point
+const ORBIT_DOT_SPACING_ANGLE = 0.27; // Espacement entre les points d'un même groupe
 const BORDURES_FADE_MS = 300; // Durée exacte du mouvement en MILLISECONDES des TRAITS qui se retractent ou sortent
 let activeSnapshot = null;            // Le stockage de notre "photo"
 let modePreviewTimer = null;
@@ -263,17 +265,16 @@ let fixedZones = []; // Stockage des séparations fixes
 
 // --- NOUVELLE PALETTE (11 couleurs simples) ---
 const FAMILLES = [
-    ['#FF4646'], // 0: Rouge (VIP)
-    ['#E76363'], // 1: Corail
-    ['#FF8F4D'], // 2: Orange
-    ['#FFFF42'], // 3: Jaune (VIP)
-    ['#bdff22'], // 4: Vert citron
-    ['#0bf500'], // 5: Vert clair (VIP)
-    ['#01ffce'], // 6: Menthe
-    ['#00eaff'], // 7: Cyan
-    ['#00AEEF'], // 8: Bleu (VIP)
-    ['#CF3BFC'], // 9: Violet
-    ['#FFAFFF']  // 10: Rose
+    ['#ff2635'], // 0: Rouge (VIP)
+    ['#ff8418'], // 1: Orange
+    ['#FFFF42'], // 2: Jaune (VIP)
+    ['#bdff22'], // 3: Vert citron
+    ['#0bf500'], // 4: Vert clair (VIP)
+    ['#01ffce'], // 5: Menthe
+    ['#00eaff'], // 6: Cyan
+    ['#00AEEF'], // 7: Bleu (VIP)
+    ['#CF3BFC'], // 8: Violet
+    ['#FFAFFF']  // 9: Rose
 ];
 
 let assignedColors = []; // Mémoire des couleurs attribuées
@@ -407,7 +408,7 @@ function handleSettings(count) {
         config.system = config.system === 'POINTS' ? 'FORMES' : 'POINTS';
         isModePreview = true;
         
-        window.isPreviewDispersion = true; // On garde ton drapeau de sécurité
+        window.isPreviewDispersion = true;
         window.dispersionOldSystem = oldSystem;
         window.dispersionNewSystem = config.system;
         window.dispersionStartTime = performance.now();
@@ -419,17 +420,16 @@ function handleSettings(count) {
             const oldDuration = window.dispersionOldSystem === 'FORMES' ? CROSSFADE_DUREE_FORMES_MS : CROSSFADE_DUREE_POINTS_MS;
             const newDuration = window.dispersionNewSystem === 'FORMES' ? CROSSFADE_DUREE_FORMES_MS : CROSSFADE_DUREE_POINTS_MS;
 
-            // Progrès de l'ancien état (Fade out & Shrink) : de 0 à 1
             window.dispersionOldProgress = Math.min(1, elapsed / oldDuration);
             
-            // Progrès du nouvel état avec délai (Fade in & Grow) : de 0 à 1
             const newElapsed = Math.max(0, elapsed - CROSSFADE_START_DELAY_MS);
             window.dispersionNewProgress = Math.min(1, newElapsed / newDuration);
 
             if (window.dispersionNewProgress < 1 && window.isPreviewDispersion) {
                 requestAnimationFrame(animateDispersion);
             } else if (window.dispersionNewProgress >= 1) {
-                window.isPreviewDispersion = false;
+                // On laisse l'animation active pour continuer de tourner
+                // lancerFermeturePreview coupera tout a la fin du timer + fade out
                 lancerFermeturePreview(DUREE_MAINTIEN_PREVIEW_PARAMETRE_DOTS);
             }
         }
@@ -617,10 +617,10 @@ function updateTouches(touchList) {
             famD = touchColorMap[sorted[nextIdx].id].familyIdx;
         }
         // --- NOUVEAU CERVEAU : LOTO TRUQUÉ + CONTRASTE ---
-        const NB_COULEURS = 11;
-        const VIP = [0, 3, 5, 8]; // Rouge, Jaune, Vert clair, Bleu
+        const NB_COULEURS = 10;
+        const VIP = [0, 2, 4, 7]; // Rouge, Jaune, Vert clair, Bleu
         // La liste noire stricte des couples trop proches
-        const INTERDITS = ["0-1", "1-0", "1-2", "2-1", "4-5", "5-4", "5-6", "6-5", "4-6", "6-4"];
+        const INTERDITS = ["0-1", "1-0", "1-2", "2-1", "3-4", "4-3", "4-5", "5-4", "3-5", "5-3"];
 
         let candidatsValides = [];
         for (let f = 0; f < NB_COULEURS; f++) {
@@ -821,6 +821,7 @@ function handleFinalSequence(succes, finalId) {
 function triggerNeonEffect(onComplete) {
     if (config.mode !== 'ÉLU UNIQUE') { if(onComplete) onComplete(); return; }
     
+    playTick('elu_ON.wav'); // Déclenchement immédiat au lancement de l'anim
     isNeonFlickering = true;
     let patternIdx = 0;
 
@@ -920,15 +921,14 @@ function drawFeedback(x, y, index) {
     } else {
         // SYSTÈME ORBITAL (DOTS)
         const groups = FEEDBACK_ORBIT_DOTS_GROUPS;
-        const dotRadius = 6;
         for (let g = 0; g < groups; g++) {
             const groupAngle = (g / groups) * Math.PI * 2;
             for (let d = 0; d < rank; d++) {
-                const dotAngle = groupAngle + (d * 0.25); 
+                const dotAngle = groupAngle + (d * ORBIT_DOT_SPACING_ANGLE); 
                 const dx = Math.cos(dotAngle) * (currentDiam / 2);
                 const dy = Math.sin(dotAngle) * (currentDiam / 2);
                 ctx.beginPath();
-                ctx.arc(dx, dy, dotRadius, 0, Math.PI * 2);
+                ctx.arc(dx, dy, ORBIT_DOT_RADIUS, 0, Math.PI * 2);
                 ctx.save();
                 // Ici, on obéit aussi au forçage d'opacité
                 ctx.globalAlpha = activeAlpha; 
@@ -1032,8 +1032,8 @@ function draw() {
             Math.PI * 1.25       // ~1h (Jaune)
         ];
 
-        // MENU VITRINE (Modifiable ici) : Bleu(8), Vert clair(5), Rouge(0), Menthe(6), Jaune(3)
-        const organicFamilies = [8, 5, 0, 10, 3];
+        // MENU VITRINE (Modifiable ici) : Bleu(7), Vert clair(4), Rouge(0), Rose(9), Jaune(2)
+        const organicFamilies = [7, 4, 0, 9, 2];
         // Attribution des points : Bleu=5, Vert=3, Rouge=1, Menthe=4, Jaune=2
         const customCounts = [5, 3, 1, 4, 2];
 
