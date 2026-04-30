@@ -118,7 +118,7 @@ function debugLog(msg, color = "red") {
 }
 
 // --- LE JUKEBOX (CONFIGURATION & PRECHARGEMENT PRIORITAIRE) ---
-const SONS_A_CHARGER = ['tick1.wav', 'bouton1.wav']; 
+const SONS_A_CHARGER = ['tick1.wav', 'bouton_pushed.wav', 'bouton_released.wav']; 
 let audioCtx = null;
 let soundLibrary = {}; 
 
@@ -268,10 +268,12 @@ const NEON_PATTERN = [
     [200, 1.0]   // Dernier flash long avant le fixe
 ]; 
 let isNeonFlickering = false;
-let currentNeonOpacity = 1.0; // On stocke l'intensité actuelle ici
+let currentNeonOpacity = 1.0; 
+let currentPointsNeonOpacity = 1.0; 
+let useSolidBackground = false; 
 window.ordreNeonStates = [1.0, 1.0, 1.0, 1.0, 1.0];
-window.dispersionProgress = 0; // 0 = centre, 1 = zones
-window.isPreviewDispersion = false; // État par défaut (tout allumé)
+window.dispersionProgress = 0; 
+window.isPreviewDispersion = false;
 
 const DUREE_ENTRE_CHAQUE_ALLUMAGE_DE_NEON_PARAMETRE_ORDRE = 150;
 
@@ -415,7 +417,7 @@ function showToast(msg) {
 }
 
 
-// ACTION QUAND ON APPUIE (IMAGE ENFONCEE : DEMI)
+// ACTION QUAND ON APPUIE (PUSHED)
 splashBtn.addEventListener('touchstart', (e) => {
     if (hasStarted) return;
     e.preventDefault();
@@ -426,16 +428,18 @@ splashBtn.addEventListener('touchstart', (e) => {
         audioCtx.resume();
     }
     
-    playTick('bouton1.wav');
+    playTick('bouton-pushed.wav');
 }, { passive: false });
 
-// ACTION QUAND ON RELACHE (IMAGE ENCLENCHEE : ON + DEPART)
+// ACTION QUAND ON RELACHE (RELEASED)
 splashBtn.addEventListener('touchend', (e) => {
     if (hasStarted) return;
     hasStarted = true;
     
     splashBtn.src = "Bouton_Accueil_ON.png";
-    playTick('bouton1.wav');
+    
+    // Deuxieme declenchement du son
+    playTick('bouton-released.wav');
 
     setTimeout(() => {
         splash.classList.add('splash-exit');
@@ -1065,7 +1069,6 @@ function draw() {
             // 1. CALCUL DE L'OPACITÉ, DE LA COULEUR ET DU FOND
             let finalAlpha = 1.0;
             let finalColor = closestTouch.color;
-            let useWhiteBackground = false;
 
             if (isCurrentActive || isWinner) {
                 // LE GAGNANT (Toujours sur fond noir)
