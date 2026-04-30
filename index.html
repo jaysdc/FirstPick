@@ -420,7 +420,7 @@ function showToast(msg) {
 }
 
 
-// ACTION QUAND ON APPUIE (PUSHED)
+// ACTION QUAND ON APPUIE (DEMI + SON IMMEDIAT)
 splashBtn.addEventListener('touchstart', (e) => {
     if (hasStarted) return;
     e.preventDefault();
@@ -431,24 +431,18 @@ splashBtn.addEventListener('touchstart', (e) => {
         audioCtx.resume();
     }
     
+    // Le son se declenche ici au contact direct
+    playTick('bouton1.wav');
 }, { passive: false });
 
-// ACTION QUAND ON RELACHE (RELEASED)
+// ACTION QUAND ON RELACHE (PASSAGE EN ON + ENVOL)
 splashBtn.addEventListener('touchend', (e) => {
     if (hasStarted) return;
     hasStarted = true;
-    e.preventDefault(); // Securité pour eviter les gestes systeme
     
     splashBtn.src = "Bouton_Accueil_ON.png";
     
-    // On force la reactivation juste avant le play pour les appuis longs
-    if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume().then(() => {
-            playTick('bouton1.wav');
-        });
-    } else {
-        playTick('bouton1.wav');
-    }
+    // Pas de son ici, deja joue au contact
 
     setTimeout(() => {
         splash.classList.add('splash-exit');
