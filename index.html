@@ -163,6 +163,7 @@ function mixColors(color1, color2, weight) {
 
 // --- CONFIGURATION SPLASH SCREEN ---
 const DURATION_BEFORE_SPLASH_SCREEN_ANIMATION = 500; // Temps d'attente après le clic (ms)
+const DUREE_ETAT_ON = 150; // Duree de l'image ON avant de passer à DEMI (ms)
 
 // --- CONFIGURATION DE LA DUREE POUR SAVOIR DETECTER SI C'EST UN CHANGEMENT DE PARAMETRE ---
 const TAP_MAX_DURATION = 150;    
@@ -420,29 +421,32 @@ function showToast(msg) {
 }
 
 
-// ACTION QUAND ON APPUIE (DEMI + SON IMMEDIAT)
+// SEQUENCE AUTOMATE : AUDIO + VISUEL ON PUIS DEMI
 splashBtn.addEventListener('touchstart', (e) => {
     if (hasStarted) return;
     e.preventDefault();
     
-    splashBtn.src = "Bouton_Accueil_DEMI.png"; 
-
     if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
     }
     
-    // Le son se declenche ici au contact direct
+    // Declenchement simultane Audio et Premier etat visuel
     playTick('bouton1.wav');
+    splashBtn.src = "Bouton_Accueil_ON.png"; 
+
+    // Bascule automatique vers le deuxieme etat visuel
+    setTimeout(() => {
+        if (!hasStarted) splashBtn.src = "Bouton_Accueil_DEMI.png";
+    }, DUREE_ETAT_ON);
 }, { passive: false });
 
-// ACTION QUAND ON RELACHE (PASSAGE EN ON + ENVOL)
+// RELACHE : DECLENCHEMENT DE L'ENVOL
 splashBtn.addEventListener('touchend', (e) => {
     if (hasStarted) return;
     hasStarted = true;
     
-    splashBtn.src = "Bouton_Accueil_ON.png";
-    
-    // Pas de son ici, deja joue au contact
+    // Securite visuelle pour le depart
+    splashBtn.src = "Bouton_Accueil_DEMI.png";
 
     setTimeout(() => {
         splash.classList.add('splash-exit');
@@ -455,7 +459,6 @@ splashBtn.addEventListener('touchend', (e) => {
 // SECURITE APPUIS TROP LONGS
 splashBtn.addEventListener('touchcancel', (e) => {
     if (hasStarted) return;
-    // On redirige vers le comportement du relachement
     const ev = new Event('touchend');
     splashBtn.dispatchEvent(ev);
 }, { passive: false });
