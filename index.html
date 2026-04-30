@@ -274,6 +274,7 @@ let useSolidBackground = false;
 window.ordreNeonStates = [1.0, 1.0, 1.0, 1.0, 1.0];
 window.dispersionProgress = 0; 
 window.isPreviewDispersion = false;
+let currentPreviewParam = null;
 
 const DUREE_ENTRE_CHAQUE_ALLUMAGE_DE_NEON_PARAMETRE_ORDRE = 150;
 
@@ -346,7 +347,8 @@ function lancerFermeturePreview(delaiSecondes) {
             } else {
                 isModePreview = false;
                 isNeonFlickering = false;
-                window.isPreviewDispersion = false; // Sécurité
+                window.isPreviewDispersion = false; 
+                currentPreviewParam = null;
                 globalFadeOpacity = 1.0;
             }
         }
@@ -356,6 +358,7 @@ function lancerFermeturePreview(delaiSecondes) {
 
 function handleSettings(count) {
     if (activeSnapshot) return; 
+    currentPreviewParam = count;
 
     // NETTOYAGE RADICAL DE TOUS LES TIMERS ET ÉTATS PRÉCÉDENTS
     clearTimeout(modePreviewTimer);
@@ -434,11 +437,18 @@ splashBtn.addEventListener('touchstart', (e) => {
 splashBtn.addEventListener('touchend', (e) => {
     if (hasStarted) return;
     hasStarted = true;
+    e.preventDefault(); // Securité pour eviter les gestes systeme
     
     splashBtn.src = "Bouton_Accueil_ON.png";
     
-    // Deuxieme declenchement du son
-    playTick('bouton1.wav');
+    // On force la reactivation juste avant le play pour les appuis longs
+    if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().then(() => {
+            playTick('bouton1.wav');
+        });
+    } else {
+        playTick('bouton1.wav');
+    }
 
     setTimeout(() => {
         splash.classList.add('splash-exit');
@@ -446,6 +456,14 @@ splashBtn.addEventListener('touchend', (e) => {
             splash.remove();
         }, 800);
     }, DURATION_BEFORE_SPLASH_SCREEN_ANIMATION);
+}, { passive: false });
+
+// SECURITE APPUIS TROP LONGS
+splashBtn.addEventListener('touchcancel', (e) => {
+    if (hasStarted) return;
+    // On redirige vers le comportement du relachement
+    const ev = new Event('touchend');
+    splashBtn.dispatchEvent(ev);
 }, { passive: false });
 
 canvas.addEventListener('touchstart', (e) => {
@@ -1001,11 +1019,11 @@ function draw() {
                 count: customCounts[i] // On stocke le chiffre ici
             });
         });
-        // Si on règle les symboles, on allume toutes les zones à fond pour que ça "pope"
-        if (config.mode === 'ÉLU UNIQUE' && !window.isPreviewDispersion) {
-            currentWinnerId = "ghost0";
+        // Isolation des rendus
+        if (currentPreviewParam === 2 && config.mode === 'ÉLU UNIQUE') {
+            currentWinnerId = "ghost0"; // Un seul pulse
         } else {
-            currentWinnerId = "ghost_all"; 
+            currentWinnerId = "ghost_all"; // Tout est allumé pour les autres reglages
         }
     }
 
