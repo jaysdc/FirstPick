@@ -131,7 +131,7 @@ function debugLog(msg, color = "red") {
 }
 
 // --- LE JUKEBOX (CONFIGURATION & PRECHARGEMENT PRIORITAIRE) ---
-const SONS_A_CHARGER = ['tick1.wav', 'bouton1.wav', 'light_ON.wav', 'elu_ON.wav']; 
+const SONS_A_CHARGER = ['tick1.wav', 'bouton1.wav', 'light_ON.wav', 'elu2_ON.wav']; 
 let audioCtx = null;
 let soundLibrary = {}; 
 
@@ -821,7 +821,7 @@ function handleFinalSequence(succes, finalId) {
 function triggerNeonEffect(onComplete) {
     if (config.mode !== 'ÉLU UNIQUE') { if(onComplete) onComplete(); return; }
     
-    playTick('elu_ON.wav'); // Déclenchement immédiat au lancement de l'anim
+    playTick('elu2_ON.wav'); // Déclenchement immédiat au lancement de l'anim
     isNeonFlickering = true;
     let patternIdx = 0;
 
