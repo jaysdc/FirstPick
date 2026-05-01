@@ -249,7 +249,7 @@ const BORDURES_FADE_MS = 300; // Durée d'apparition fluide des TRAITS
 // --- PARAMÈTRES DE LA GOMME (EFFACEMENT BORDURES OFF) ---
 const GOMME_COUPS = 4;           // Nombre de saccades (coups de gomme)
 const GOMME_CHAOS = 0.9;         // Variation des blocs (0 = blocs égaux, 0.8 = tailles très variables)
-const GOMME_DUREE_MS = 900;      // Temps total de l'animation d'effacement
+const GOMME_DUREE_MS = 1100;      // Temps total de l'animation d'effacement
 const GOMME_PAUSE_RATIO = 0.4;   // Temps de pause entre chaque coup (0.4 = 40% du temps immobile, 60% en mouvement)
 let activeSnapshot = null;            // Le stockage de notre "photo"
 let modePreviewTimer = null;
@@ -448,7 +448,7 @@ function handleSettings(count) {
         
         // Déclenchement instantané du son
         if (config.style === 'BORDURES ON') {
-            playTick('trait_ON_2.wav');
+            playTick('trait_ON_1.wav');
         } else {
             playTick('trait_OFF_2.wav');
             
