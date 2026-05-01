@@ -245,7 +245,12 @@ const FEEDBACK_ROTATION_TPS = 0.1;    // Vitesse en TOURS PAR SECONDE (Ex: 0.5 =
 const FEEDBACK_ORBIT_DOTS_GROUPS = 3; // Nombre de groupes de points (X)
 const ORBIT_DOT_RADIUS = 4.5;           // Taille (rayon) de chaque petit point
 const ORBIT_DOT_SPACING_ANGLE = 0.27; // Espacement entre les points d'un même groupe
-const BORDURES_FADE_MS = 300; // Durée exacte du mouvement en MILLISECONDES des TRAITS qui se retractent ou sortent
+const BORDURES_FADE_MS = 300; // Durée d'apparition fluide des TRAITS
+// --- PARAMÈTRES DE LA GOMME (EFFACEMENT BORDURES OFF) ---
+const GOMME_COUPS = 3;           // Nombre de saccades (coups de gomme)
+const GOMME_CHAOS = 0.9;         // Variation des blocs (0 = blocs égaux, 0.8 = tailles très variables)
+const GOMME_DUREE_MS = 750;      // Temps total de l'animation d'effacement
+const GOMME_PAUSE_RATIO = 0.4;   // Temps de pause entre chaque coup (0.4 = 40% du temps immobile, 60% en mouvement)
 let activeSnapshot = null;            // Le stockage de notre "photo"
 let modePreviewTimer = null;
 let isModePreview = false;
@@ -446,6 +451,24 @@ function handleSettings(count) {
             playTick('trait_ON.wav');
         } else {
             playTick('trait_OFF.wav');
+            
+            // DÉCOUPE DES COUPS DE GOMME
+            window.gommeSteps = [{ timeRatio: 0, pos: 1.0 }];
+            let totalWeight = 0;
+            let weights = [];
+            for(let i=0; i<GOMME_COUPS; i++) {
+                let w = 1 + ((Math.random() * 2 - 1) * GOMME_CHAOS);
+                weights.push(Math.max(0.2, w)); 
+                totalWeight += weights[weights.length-1];
+            }
+            let currentPos = 1.0;
+            let accumTime = 0;
+            for(let i=0; i<GOMME_COUPS; i++) {
+                let ratio = weights[i] / totalWeight;
+                currentPos -= ratio;
+                accumTime += ratio;
+                window.gommeSteps.push({ timeRatio: accumTime, pos: Math.max(0, currentPos) });
+            }
         }
     }
 
@@ -1205,24 +1228,42 @@ function draw() {
             ctx.fill();
         }
 
-        // --- ANIMATION ET DESSIN DES BORDURES (CHRONO MIROIR) ---
+        // --- ANIMATION ET DESSIN DES BORDURES ---
         if (window.bordureAnimStart === undefined) window.bordureAnimStart = 0;
-        
-        // On calcule où on en est dans le temps (entre 0 et 1)
         let elapsed = performance.now() - window.bordureAnimStart;
-        let t = Math.min(1, elapsed / BORDURES_FADE_MS);
         
-        // Maillon magique : la courbe de lissage (Douce au début, douce à la fin)
-        // C'est cette formule qui crée le "ralenti" identique dans les deux sens
-        let smoothStep = t * t * (3 - 2 * t);
+        let targetFadeTime = (config.style === 'BORDURES ON') ? BORDURES_FADE_MS : GOMME_DUREE_MS;
         
-        // On applique le sens : soit on va vers 1, soit on revient vers 0
-        window.borduresProgress = (config.style === 'BORDURES ON') ? smoothStep : 1 - smoothStep;
+        if (config.style === 'BORDURES ON') {
+            let t = Math.min(1, elapsed / BORDURES_FADE_MS);
+            window.borduresProgress = t * t * (3 - 2 * t); // Courbe fluide
+        } else {
+            // MODE GOMME
+            let t = Math.min(1, elapsed / GOMME_DUREE_MS);
+            let currentPos = 0;
+            if (window.gommeSteps && window.gommeSteps.length > 0) {
+                for (let i = 0; i < window.gommeSteps.length - 1; i++) {
+                    let stepStart = window.gommeSteps[i];
+                    let stepEnd = window.gommeSteps[i+1];
+                    if (t >= stepStart.timeRatio && t <= stepEnd.timeRatio) {
+                        let localT = (t - stepStart.timeRatio) / (stepEnd.timeRatio - stepStart.timeRatio);
+                        
+                        // L'app calcule la vitesse du coup selon ta pause
+                        let tempsMouvement = 1.0 - GOMME_PAUSE_RATIO;
+                        let friction = Math.min(1, localT / tempsMouvement); 
+                        
+                        currentPos = stepStart.pos - (stepStart.pos - stepEnd.pos) * friction;
+                        break;
+                    }
+                }
+                if (t >= 1) currentPos = 0;
+            }
+            window.borduresProgress = currentPos;
+        }
 
         // DETECTION DE FIN POUR LE FADE OUT DES TRAITS
         if (isModePreview && !activeSnapshot && !window.isPreviewDispersion && !isNeonFlickering && window.bordureAnimStart !== 0) {
-            // On ne déclenche que si on est dans le menu des bordures (tours de 800ms)
-            if (elapsed >= BORDURES_FADE_MS && !window.bordureFadeTriggered) {
+            if (elapsed >= targetFadeTime && !window.bordureFadeTriggered) {
                 window.bordureFadeTriggered = true; 
                 lancerFermeturePreview(DUREE_MAINTIEN_PREVIEW_PARAMETRE_TRAITS);
             }
