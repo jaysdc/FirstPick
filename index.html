@@ -75,6 +75,7 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
+        transform: translateY(30px);
     }
 
     #splash-title {
@@ -131,7 +132,7 @@ function debugLog(msg, color = "red") {
 }
 
 // --- LE JUKEBOX (CONFIGURATION & PRECHARGEMENT PRIORITAIRE) ---
-const SONS_A_CHARGER = ['tick1.wav', 'bouton1.wav', 'light_ON.wav', 'elu3_ON.wav']; 
+const SONS_A_CHARGER = ['tick.wav', 'bouton.wav', 'ordre_ON.wav', 'elu_ON.wav', 'trait_ON.wav', 'trait_OFF.wav']; 
 let audioCtx = null;
 let soundLibrary = {}; 
 
@@ -331,7 +332,7 @@ let masterFingerId = null;
 let fixedStartAngle = null;
 
 // Fonction pour jouer n'importe quel son charge
-function playTick(filename = 'tick1.wav') {
+function playTick(filename = 'tick.wav') {
     if (!audioCtx) return;
     const buffer = soundLibrary[filename];
     if (!buffer) return; 
@@ -440,6 +441,13 @@ function handleSettings(count) {
         isModePreview = true;
         window.bordureAnimStart = performance.now();
         window.bordureFadeTriggered = false;
+        
+        // Déclenchement instantané du son
+        if (config.style === 'BORDURES ON') {
+            playTick('trait_ON.wav');
+        } else {
+            playTick('trait_OFF.wav');
+        }
     }
 
     localStorage.setItem('firstPickSettings', JSON.stringify(config));
@@ -475,7 +483,7 @@ splashBtn.addEventListener('touchend', (e) => {
     hasStarted = true;
     
     // Deuxieme declenchement du son
-    playTick('bouton1.wav');
+    playTick('bouton.wav');
 
     setTimeout(() => {
         splash.classList.add('splash-exit');
@@ -850,7 +858,7 @@ function handleFinalSequence(succes, finalId) {
 function triggerNeonEffect(onComplete) {
     if (config.mode !== 'ÉLU UNIQUE') { if(onComplete) onComplete(); return; }
     
-    playTick('elu3_ON.wav'); // Déclenchement immédiat au lancement de l'anim
+    playTick('elu_ON.wav'); // Déclenchement immédiat au lancement de l'anim
     isNeonFlickering = true;
     let patternIdx = 0;
 
