@@ -270,7 +270,7 @@ function debugLog(msg, color = "red") {
 }
 
 // --- LE JUKEBOX (CONFIGURATION & PRECHARGEMENT PRIORITAIRE) ---
-const SONS_A_CHARGER = ['tick.wav', 'bouton.wav', 'ordre_ON.wav', 'elu_ON.wav', 'trait_ON_1.wav', 'trait_ON_2.wav', 'trait_OFF_1.wav', 'formes-points.wav']; 
+const SONS_A_CHARGER = ['tick.wav', 'bouton.wav', 'ordre_ON.wav', 'elu_ON.wav', 'trait_ON_1.wav', 'trait_ON_2.wav', 'trait_OFF_1.wav', 'formes-points_OUT.wav', 'formes-points_IN.wav']; 
 let audioCtx = null;
 let soundLibrary = {}; 
 
@@ -391,8 +391,8 @@ const ROUE_REBOND_MAX = 1000;       // Silence long (ms)
 
 // --- PARAMÈTRES FEEDBACK (TWEAK) ---
 const FEEDBACK_TYPE = 'FORMES';      // 'FORMES' ou 'POINTS'
-const FEEDBACK_FORMES_SIZE = 70;     // Taille des formes (Carré, Triangle...)
-const FEEDBACK_POINTS_DIAMETRE = 70; // Diamètre du cercle de rotation des points
+const FEEDBACK_FORMES_SIZE = 80;     // Taille des formes (Carré, Triangle...)
+const FEEDBACK_POINTS_DIAMETRE = 80; // Diamètre du cercle de rotation des points
 const FEEDBACK_THICKNESS = 12;        // Épaisseur des traits
 const FEEDBACK_ROTATION_TPS = 0.1;    // Vitesse en TOURS PAR SECONDE (Ex: 0.5 = 180°/s)
 const FEEDBACK_ORBIT_DOTS_GROUPS = 3; // Nombre de groupes de points (X)
@@ -412,26 +412,31 @@ let isModePreview = false;
 const GAME_FORMES_SIZE = 110;         // Taille des formes (EN JEU)
 const GAME_POINTS_DIAMETRE = 110;     // Diamètre des points (EN JEU)
 
-// --- PARAMETRES DE TRANSITION CROSSFADE (MENU POINTS/FORMES) ---
-const CROSSFADE_START_DELAY_MS = 150;    // Délai avant lancement de l'apparition (croisement)
-const CROSSFADE_DUREE_FORMES_MS = 400;   // Durée d'animation des formes (réduction + fondu)
-const CROSSFADE_DUREE_POINTS_MS = 400;   // Durée d'animation des points (réduction + fondu)
-const CARROUSEL_ROTATION_ANGLE = Math.PI / 3; // L'angle de balayage du projecteur (ici 60 degrés)
+// --- PARAMETRES DE TRANSITION ROTATION (MENU POINTS/FORMES) ---
+const ROTATION_FORMESPOINTS_OUT_MS = 400; // Durée de la disparition (1er clack)
+const ROTATION_FORMESPOINTS_IN_MS = 400;  // Durée de l'apparition (2ème clack)
+
+// Distances individuelles du centre (en % de la taille de l'écran)
+const DISTANCE_RANG_1_PERCENT = 40; // Cercle / 1 point
+const DISTANCE_RANG_2_PERCENT = 34; // Croix / 2 points
+const DISTANCE_RANG_3_PERCENT = 35; // Triangle / 3 points
+const DISTANCE_RANG_4_PERCENT = 34; // Carré / 4 points
+const DISTANCE_RANG_5_PERCENT = 43; // Pentagone / 5 points
 
 let fixedZones = []; // Stockage des séparations fixes
 
 // --- PALETTE v4 (10 couleurs simples) ---
 const FAMILLES = [
-    ['#FF2635'], // 0: Rouge (VIP)
-    ['#FF8418'], // 1: Orange
-    ['#FFFF42'], // 2: Jaune (VIP)
-    ['#BDFF22'], // 3: Vert citron
-    ['#0BF500'], // 4: Vert clair (VIP)
-    ['#2FFFCC'], // 5: Menthe
-    ['#00EAFF'], // 6: Bleu Ciel
-    ['#00AEEF'], // 7: Bleu (VIP)
-    ['#CF3BFC'], // 8: Violet
-    ['#FFAFFF']  // 9: Rose
+    ['#ff4848'], // 0: Rouge (VIP)
+    ['#ffab27'], // 1: Orange
+    ['#ffff42'], // 2: Jaune (VIP)
+    ['#bdff22'], // 3: Vert citron
+    ['#bdff22'], // 4: Vert clair
+    ['#2fffcc'], // 5: Menthe (VIP)
+    ['#00eaff'], // 6: Bleu Ciel
+    ['#00aeef'], // 7: Bleu (VIP)
+    ['#d95bff'], // 8: Violet
+    ['#ffafff']  // 9: Rose
 ];
 
 let assignedColors = []; // Mémoire des couleurs attribuées
@@ -461,10 +466,10 @@ const DUREE_ENTRE_CHAQUE_ALLUMAGE_DE_NEON_PARAMETRE_ORDRE = 150;
 
 const BORDURES_LONGUEURS_CUSTOM = {
     "jaune/bleu": 416,
-    "bleu/vert": 250,
-    "vert/rouge": 268,
-    "rouge/menthe": 420,
-    "menthe/jaune": 192
+    "bleu/rose": 250,
+    "rose/menthe": 268,
+    "menthe/rouge": 420,
+    "rouge/jaune": 192
 };
 
 const FEEDBACK_PREVIEW_PARAMETRE_DOT_SIZE = 6;  // Taille du rayon des points (ex: 8)
@@ -584,36 +589,42 @@ function handleSettings(count) {
         }
     } 
     else if (count === 3) {
-        const oldSystem = config.system;
+        window.dispersionOldSystem = config.system;
         config.system = config.system === 'POINTS' ? 'FORMES' : 'POINTS';
         isModePreview = true;
-        
         window.isPreviewDispersion = true;
-        window.dispersionOldSystem = oldSystem;
-        window.dispersionNewSystem = config.system;
+
+        playTick('formes-points_OUT.wav');
+
+        window.dispersionPhase = 'OUT';
+        window.rotationProgress = 0;
         window.dispersionStartTime = performance.now();
 
-        function animateDispersion() {
+        function animateRotation() {
             const now = performance.now();
             const elapsed = now - window.dispersionStartTime;
 
-            const oldDuration = window.dispersionOldSystem === 'FORMES' ? CROSSFADE_DUREE_FORMES_MS : CROSSFADE_DUREE_POINTS_MS;
-            const newDuration = window.dispersionNewSystem === 'FORMES' ? CROSSFADE_DUREE_FORMES_MS : CROSSFADE_DUREE_POINTS_MS;
-
-            window.dispersionOldProgress = Math.min(1, elapsed / oldDuration);
-            
-            const newElapsed = Math.max(0, elapsed - CROSSFADE_START_DELAY_MS);
-            window.dispersionNewProgress = Math.min(1, newElapsed / newDuration);
-
-            if (window.dispersionNewProgress < 1 && window.isPreviewDispersion) {
-                requestAnimationFrame(animateDispersion);
-            } else if (window.dispersionNewProgress >= 1) {
-                // On laisse l'animation active pour continuer de tourner
-                // lancerFermeturePreview coupera tout a la fin du timer + fade out
-                lancerFermeturePreview(DUREE_MAINTIEN_PREVIEW_PARAMETRE_DOTS);
+            if (window.dispersionPhase === 'OUT') {
+                window.rotationProgress = Math.min(1, elapsed / ROTATION_FORMESPOINTS_OUT_MS);
+                if (window.rotationProgress < 1 && window.isPreviewDispersion) {
+                    requestAnimationFrame(animateRotation);
+                } else if (window.isPreviewDispersion) {
+                    window.dispersionPhase = 'IN';
+                    window.rotationProgress = 0; // LE COUPABLE ETAIT ICI : On force le reset avant de dessiner
+                    window.dispersionStartTime = performance.now();
+                    playTick('formes-points_IN.wav');
+                    requestAnimationFrame(animateRotation);
+                }
+            } else if (window.dispersionPhase === 'IN') {
+                window.rotationProgress = Math.min(1, elapsed / ROTATION_FORMESPOINTS_IN_MS);
+                if (window.rotationProgress < 1 && window.isPreviewDispersion) {
+                    requestAnimationFrame(animateRotation);
+                } else if (window.isPreviewDispersion) {
+                    lancerFermeturePreview(DUREE_MAINTIEN_PREVIEW_PARAMETRE_DOTS);
+                }
             }
         }
-        animateDispersion();
+        animateRotation();
     } 
     else if (count === 4) {
         config.style = config.style === 'BORDURES OFF' ? 'BORDURES ON' : 'BORDURES OFF';
@@ -856,7 +867,7 @@ function updateTouches(touchList) {
                 }
                 
                 const NB_COULEURS = 10;
-                const VIP = [0, 2, 4, 7]; 
+                const VIP = [0, 2, 5, 7]; 
                 const INTERDITS = ["0-1", "1-0", "1-2", "2-1", "3-4", "4-3", "4-5", "5-4", "3-5", "5-3"];
 
                 let candidatsValides = [];
@@ -1261,15 +1272,15 @@ function draw() {
         // On définit l'angle central de chaque zone
         const organicAngles = [
             -Math.PI / 2,        // 12h (Bleu)
-            Math.PI * 0.05,      // ~4h (Vert)
-            Math.PI * 0.45,      // ~7h (Rouge)
-            Math.PI * 0.85,      // ~10h (Menthe)
+            Math.PI * 0.05,      // ~4h (Rose)
+            Math.PI * 0.45,      // ~7h (Menthe)
+            Math.PI * 0.85,      // ~10h (Rouge)
             Math.PI * 1.25       // ~1h (Jaune)
         ];
 
-        // MENU VITRINE (Modifiable ici) : Bleu(7), Vert clair(4), Rouge(0), Rose(9), Jaune(2)
-        const organicFamilies = [7, 4, 0, 9, 2];
-        // Attribution des points : Bleu=5, Vert=3, Rouge=1, Menthe=4, Jaune=2
+        // MENU VITRINE : Bleu(7), Rose(9), Menthe(5), Rouge(0), Jaune(2)
+        const organicFamilies = [7, 9, 5, 0, 2];
+        // Attribution des points : Bleu=5, Rose=3, Menthe=1, Rouge=4, Jaune=2
         const customCounts = [5, 3, 1, 4, 2];
 
         organicAngles.forEach((angle, i) => {
@@ -1436,6 +1447,39 @@ function draw() {
             ctx.fill();
         }
 
+        // --- ANIMATION ET DESSIN DES BORDURES ---
+        if (window.bordureAnimStart === undefined) window.bordureAnimStart = 0;
+        let elapsed = performance.now() - window.bordureAnimStart;
+        
+        let targetFadeTime = (config.style === 'BORDURES ON') ? BORDURES_FADE_MS : GOMME_DUREE_MS;
+        
+        if (config.style === 'BORDURES ON') {
+            let t = Math.min(1, elapsed / BORDURES_FADE_MS);
+            window.borduresProgress = t * t * (3 - 2 * t); // Courbe fluide
+        } else {
+            // MODE GOMME
+            let t = Math.min(1, elapsed / GOMME_DUREE_MS);
+            let currentPos = 0;
+            if (window.gommeSteps && window.gommeSteps.length > 0) {
+                for (let i = 0; i < window.gommeSteps.length - 1; i++) {
+                    let stepStart = window.gommeSteps[i];
+                    let stepEnd = window.gommeSteps[i+1];
+                    if (t >= stepStart.timeRatio && t <= stepEnd.timeRatio) {
+                        let localT = (t - stepStart.timeRatio) / (stepEnd.timeRatio - stepStart.timeRatio);
+                        
+                        // L'app calcule la vitesse du coup selon ta pause
+                        let tempsMouvement = 1.0 - GOMME_PAUSE_RATIO;
+                        let friction = Math.min(1, localT / tempsMouvement); 
+                        
+                        currentPos = stepStart.pos - (stepStart.pos - stepEnd.pos) * friction;
+                        break;
+                    }
+                }
+                if (t >= 1) currentPos = 0;
+            }
+            window.borduresProgress = currentPos;
+        }
+
         // DETECTION DE FIN POUR LE FADE OUT DES TRAITS
         if (isModePreview && !activeSnapshot && !window.isPreviewDispersion && !isNeonFlickering && window.bordureAnimStart !== 0) {
             if (elapsed >= targetFadeTime && !window.bordureFadeTriggered) {
@@ -1459,12 +1503,12 @@ function draw() {
 
                 if (isModePreview) {
                     // On définit l'ordre des séparations selon tes mesures (index 0 à 4)
-                    // Ordre des zones Preview : Bleu(0), Vert(1), Rouge(2), Menthe(3), Jaune(4)
+                    // Ordre des zones Preview : Bleu(0), Rose(1), Menthe(2), Rouge(3), Jaune(4)
                     const mesures = [
-                        BORDURES_LONGUEURS_CUSTOM["bleu/vert"],   // Bordure entre Bleu et Vert
-                        BORDURES_LONGUEURS_CUSTOM["vert/rouge"],  // Bordure entre Vert et Rouge
-                        BORDURES_LONGUEURS_CUSTOM["rouge/menthe"], // Bordure entre Rouge et Menthe
-                        BORDURES_LONGUEURS_CUSTOM["menthe/jaune"], // Bordure entre Menthe et Jaune
+                        BORDURES_LONGUEURS_CUSTOM["bleu/rose"],    // Bordure entre Bleu et Rose
+                        BORDURES_LONGUEURS_CUSTOM["rose/menthe"],  // Bordure entre Rose et Menthe
+                        BORDURES_LONGUEURS_CUSTOM["menthe/rouge"], // Bordure entre Menthe et Rouge
+                        BORDURES_LONGUEURS_CUSTOM["rouge/jaune"],  // Bordure entre Rouge et Jaune
                         BORDURES_LONGUEURS_CUSTOM["jaune/bleu"]    // Bordure entre Jaune et Bleu
                     ];
                     longueur = mesures[idx] || baseRadius;
@@ -1521,139 +1565,98 @@ function draw() {
         });
     }
 
-    // --- AFFICHAGE DU CROSSFADE (PREVIEW SYSTÈME) ---
-    // --- AFFICHAGE DU CROSSFADE (PREVIEW SYSTÈME - CARROUSEL) ---
+    // --- AFFICHAGE DE LA ROTATION (PREVIEW SYSTÈME) ---
     if (isModePreview && window.isPreviewDispersion) {
-        const pixelRatio = window.devicePixelRatio || 1;
+        ctx.save();
         
-        // On pré-calcule les séparateurs pour le Clipping
-        let separators = [];
-        let sorted = [...dataSource].sort((a, b) => a.angle - b.angle);
-        for (let i = 0; i < sorted.length; i++) {
-            let current = sorted[i];
-            let next = sorted[(i + 1) % sorted.length];
-            let diff = next.angle - current.angle;
-            if (diff < 0) diff += Math.PI * 2;
-            separators.push(current.angle + diff / 2);
-        }
+        const referenceSize = Math.min(canvas.width, canvas.height);
+        
+        // Tableau pour lier le rang (0 à 4) à son paramètre de distance
+        const distancesParRang = [
+            DISTANCE_RANG_1_PERCENT,
+            DISTANCE_RANG_2_PERCENT,
+            DISTANCE_RANG_3_PERCENT,
+            DISTANCE_RANG_4_PERCENT,
+            DISTANCE_RANG_5_PERCENT
+        ];
 
-        dataSource.forEach((targetTouch, index) => {
+        dataSource.forEach(targetTouch => {
             if (targetTouch.id.startsWith("ghost") && targetTouch.count) {
                 const rankIdx = targetTouch.count - 1; 
+                const distancePercent = distancesParRang[rankIdx] || 25;
+                const distanceFromCenter = referenceSize * (distancePercent / 100);
                 
-                // Calcul de l'angle central naturel de la zone
-                let startSep = separators.find((s, i) => {
-                    let nextS = separators[(i + 1) % separators.length];
-                    let diff = targetTouch.angle - s;
-                    while (diff < 0) diff += Math.PI * 2;
-                    let span = nextS - s;
-                    while (span <= 0) span += Math.PI * 2;
-                    return diff >= 0 && diff < span;
-                });
-                let sepIdx = separators.indexOf(startSep);
-                let endSep = separators[(sepIdx + 1) % separators.length];
-                
-                // Le centre de la zone (calculé au rayon du jeu normal)
-                let midAngle = startSep + ((endSep < startSep ? endSep + Math.PI * 2 : endSep) - startSep) / 2;
-                // On pousse la forme un peu vers l'extérieur pour qu'elle s'approche des bords
-                let radiusOffset = Math.max(canvas.width, canvas.height) * 0.25;
-                let targetPos = { 
-                    x: centerX + Math.cos(midAngle) * radiusOffset, 
-                    y: centerY + Math.sin(midAngle) * radiusOffset 
-                };
+                // 1. Trouver les bordures exactes de cette part pour le masque
+                let startSep = 0, endSep = 0;
+                let sorted = [...dataSource].sort((a, b) => a.angle - b.angle);
+                for (let i = 0; i < sorted.length; i++) {
+                    if (sorted[i].id === targetTouch.id) {
+                        let current = sorted[i];
+                        let next = sorted[(i + 1) % sorted.length];
+                        let prev = sorted[(i - 1 + sorted.length) % sorted.length];
+                        
+                        let diffNext = next.angle - current.angle;
+                        if (diffNext < 0) diffNext += Math.PI * 2;
+                        endSep = current.angle + diffNext / 2;
 
-                // --- LE MASQUE DE DÉCOUPE (Le capot du projecteur) ---
+                        let diffPrev = current.angle - prev.angle;
+                        if (diffPrev < 0) diffPrev += Math.PI * 2;
+                        startSep = prev.angle + diffPrev / 2;
+                        break;
+                    }
+                }
+
+                // 2. Calcul du milieu parfait (Bissectrice)
+                let span = endSep - startSep;
+                while (span <= 0) span += Math.PI * 2;
+                const bisectorAngle = startSep + span / 2;
+
+                // 3. Calcul de la rotation animée
+                let currentAngle = bisectorAngle;
+                let currentAlpha = globalFadeOpacity;
+                let activeSystem = window.dispersionOldSystem;
+
+                const smoothProgress = window.rotationProgress * window.rotationProgress * (3 - 2 * window.rotationProgress);
+                
+                // Marge de sécurité (0.6 radian = ~34 degrés)
+                const angleDegagement = 0.6;
+
+                if (window.dispersionPhase === 'OUT') {
+                    // Calcul mathématique relatif pour obliger le carrousel à garder son sens anti-horaire
+                    const angleCible = (bisectorAngle - span / 2) - angleDegagement;
+                    currentAngle = bisectorAngle - smoothProgress * (bisectorAngle - angleCible);
+                    activeSystem = window.dispersionOldSystem;
+                } else if (window.dispersionPhase === 'IN') {
+                    // Calcul mathématique relatif pour éviter le bug du passage à 0 degré
+                    const angleDepart = (bisectorAngle + span / 2) + angleDegagement;
+                    currentAngle = angleDepart - smoothProgress * (angleDepart - bisectorAngle);
+                    activeSystem = config.system;
+                }
+
+                const targetX = centerX + Math.cos(currentAngle) * distanceFromCenter;
+                const targetY = centerY + Math.sin(currentAngle) * distanceFromCenter;
+
+                // 4. LE MASQUE ET LE DESSIN (Pochoir)
                 ctx.save();
                 ctx.beginPath();
                 ctx.moveTo(centerX, centerY);
-                ctx.arc(centerX, centerY, baseRadius, startSep, (endSep < startSep ? endSep + Math.PI * 2 : endSep));
+                ctx.arc(centerX, centerY, baseRadius, startSep, startSep + span);
                 ctx.closePath();
-                ctx.clip(); // <-- LA MAGIE EST ICI : Tout ce qui sort de ce triangle sera coupé net !
-                
-                // 1. DESSIN DE L'ANCIEN ETAT (Sortie inversée)
-                if (window.dispersionOldProgress !== undefined && window.dispersionOldProgress < 1) {
-                    const tOld = window.dispersionOldProgress;
-                    const smoothOld = tOld * tOld * (3 - 2 * tOld); // Lissage pro
-                    
-                    ctx.save();
-                    // On tourne tout le plateau autour du centre de l'écran
-                    ctx.translate(centerX, centerY);
-                    // INVERSION : L'ancien système pivote vers l'angle négatif
-                    ctx.rotate(smoothOld * -CARROUSEL_ROTATION_ANGLE);
-                    ctx.translate(-centerX, -centerY);
-                    
-                    window.overrideFeedbackAlpha = (1.0 - smoothOld) * globalFadeOpacity;
-                    window.overrideFeedbackStyle = window.dispersionOldSystem;
-                    window.overrideFeedbackScale = 1.0; // Pas de rétrécissement
-                    
-                    drawFeedback(targetPos.x, targetPos.y, rankIdx);
-                    ctx.restore();
-                }
+                ctx.clip(); 
 
-                // 2. DESSIN DU NOUVEL ETAT (Entrée inversée)
-                if (window.dispersionNewProgress !== undefined && window.dispersionNewProgress > 0) {
-                    const tNew = window.dispersionNewProgress;
-                    const smoothNew = tNew * tNew * (3 - 2 * tNew);
-                    
-                    ctx.save();
-                    // On tourne tout le plateau autour du centre de l'écran
-                    ctx.translate(centerX, centerY);
-                    // INVERSION : Le nouveau système arrive depuis l'angle positif
-                    ctx.rotate((1.0 - smoothNew) * CARROUSEL_ROTATION_ANGLE);
-                    ctx.translate(-centerX, -centerY);
-                    
-                    window.overrideFeedbackAlpha = smoothNew * globalFadeOpacity;
-                    window.overrideFeedbackStyle = window.dispersionNewSystem;
-                    window.overrideFeedbackScale = 1.0; // Pas de rétrécissement
-                    
-                    drawFeedback(targetPos.x, targetPos.y, rankIdx);
-                    ctx.restore();
-                }
+                window.overrideFeedbackAlpha = currentAlpha;
+                window.overrideFeedbackStyle = activeSystem;
                 
-                // Fin du masque de découpe pour cette zone
-                ctx.restore();
+                drawFeedback(targetX, targetY, rankIdx);
                 
-                // Nettoyage des forcages
-                window.overrideFeedbackScale = undefined;
                 window.overrideFeedbackAlpha = undefined;
                 window.overrideFeedbackStyle = undefined;
+
+                ctx.restore(); 
             }
         });
+        ctx.restore();
     }
-
-    // --- ANIMATION ET DESSIN DES BORDURES ---
-    if (window.bordureAnimStart === undefined) window.bordureAnimStart = 0;
-    let elapsed = performance.now() - window.bordureAnimStart;
-    
-    let targetFadeTime = (config.style === 'BORDURES ON') ? BORDURES_FADE_MS : GOMME_DUREE_MS;
-    
-    if (config.style === 'BORDURES ON') {
-        let t = Math.min(1, elapsed / BORDURES_FADE_MS);
-        window.borduresProgress = t * t * (3 - 2 * t); // Courbe fluide
-    } else {
-        // MODE GOMME
-        let t = Math.min(1, elapsed / GOMME_DUREE_MS);
-        let currentPos = 0;
-        if (window.gommeSteps && window.gommeSteps.length > 0) {
-            for (let i = 0; i < window.gommeSteps.length - 1; i++) {
-                let stepStart = window.gommeSteps[i];
-                let stepEnd = window.gommeSteps[i+1];
-                if (t >= stepStart.timeRatio && t <= stepEnd.timeRatio) {
-                    let localT = (t - stepStart.timeRatio) / (stepEnd.timeRatio - stepStart.timeRatio);
-                    
-                    // L'app calcule la vitesse du coup selon ta pause
-                    let tempsMouvement = 1.0 - GOMME_PAUSE_RATIO;
-                    let friction = Math.min(1, localT / tempsMouvement); 
-                    
-                    currentPos = stepStart.pos - (stepStart.pos - stepEnd.pos) * friction;
-                    break;
-                }
-            }
-            if (t >= 1) currentPos = 0;
-        }
-        window.borduresProgress = currentPos;
-    }
-
     requestAnimationFrame(draw);
 }
 
