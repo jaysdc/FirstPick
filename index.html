@@ -11,7 +11,13 @@
     <link rel="manifest" href="manifest.json">
     <style>
     /* Configuration des couleurs système */
-    :root { background-color: #000; }
+    :root { 
+        background-color: #000; 
+        /* Variables dynamiques pour la barre de paramètres (injectées par le JS) */
+        --settings-icons-y: 20%;
+        --settings-icons-size: 40px;
+        --settings-icons-gap: 30px;
+    }
 
     body, html { 
         margin: 0; padding: 0; width: 100%; height: 100%; 
@@ -84,10 +90,7 @@
         font-weight: 700;
         letter-spacing: -1px;
         position: absolute;
-        /* On le place au-dessus du bouton */
         bottom: 100%; 
-        /* La marge (GAP) est définie ici */
-        margin-bottom: 60px; 
         white-space: nowrap;
     }
 
@@ -104,6 +107,28 @@
         display: block;
     }
 
+    #settings-status-bar {
+        position: absolute;
+        top: var(--settings-icons-y);
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        justify-content: center;
+        gap: var(--settings-icons-gap);
+        opacity: 0; /* Géré par le JS en temps réel pour suivre l'engrenage */
+        z-index: 5; /* Au-dessus du canvas */
+        pointer-events: none; /* Ne bloque pas le tactile */
+    }
+
+    .status-icon {
+        width: var(--settings-icons-size);
+        height: var(--settings-icons-size);
+        /* LE TWEAK PRO : Le halo de contraste */
+        /* Ombre douce mais très proche pour détacher l'icône du fond sans la salir */
+        filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.8));
+        /* Les couleurs viennent directement des <symbol> SVG */
+    }
+
     /* La classe qui fera s'envoler l'écran */
     .splash-exit {
         transform: translateY(-100%);
@@ -112,13 +137,127 @@
 </style>
 </head>
 <body>
+
+    <!-- RÉSERVE D'ICÔNES (INVISIBLE) -->
+    <svg style="display: none;">
+        <symbol id="settings" viewBox="0 0 512 512">
+            <g fill="currentColor" fill-rule="evenodd">
+                <path d="m489.514 296.695-21.3-17.534c-14.59-12.011-14.564-34.335.001-46.322l21.299-17.534c15.157-12.479 19.034-33.877 9.218-50.882l-42.058-72.846c-9.818-17.004-30.292-24.344-48.674-17.458l-25.835 9.679c-17.696 6.628-37.016-4.551-40.117-23.161l-4.535-27.214c-3.228-19.366-19.821-33.423-39.455-33.423h-84.115c-19.635 0-36.229 14.057-39.456 33.424l-4.536 27.213c-3.107 18.643-22.453 29.778-40.116 23.162l-25.835-9.68c-18.383-6.886-38.855.455-48.674 17.458l-42.057 72.845c-9.817 17.003-5.941 38.402 9.218 50.882l21.299 17.534c14.592 12.012 14.563 34.334 0 46.322l-21.3 17.534c-15.158 12.48-19.035 33.879-9.218 50.882l42.058 72.846c9.818 17.003 30.286 24.344 48.674 17.458l25.834-9.679c17.699-6.631 37.015 4.556 40.116 23.161l4.536 27.212c3.228 19.369 19.822 33.426 39.456 33.426h84.115c19.634 0 36.228-14.057 39.455-33.424l4.535-27.212c3.106-18.638 22.451-29.781 40.117-23.161l25.836 9.678c18.387 6.887 38.856-.454 48.674-17.458l42.059-72.847c9.815-17.003 5.938-38.402-9.219-50.881zm-67.481 103.728-25.835-9.679c-41.299-15.471-86.37 10.63-93.605 54.043l-4.535 27.213h-84.115l-4.536-27.213c-7.249-43.497-52.386-69.484-93.605-54.043l-25.835 9.679-42.057-72.846 21.299-17.534c34.049-28.03 33.978-80.114 0-108.086l-21.299-17.534 42.058-72.846 25.834 9.679c41.3 15.47 86.37-10.63 93.605-54.043l4.535-27.213h84.115l4.535 27.213c7.25 43.502 52.389 69.481 93.605 54.043l25.835-9.679 42.067 72.836s-.003.003-.011.009l-21.298 17.534c-34.048 28.028-33.98 80.113-.001 108.086l21.3 17.534zm-166.033-243.09c-54.405 0-98.667 44.262-98.667 98.667s44.262 98.667 98.667 98.667 98.667-44.262 98.667-98.667-44.262-98.667-98.667-98.667zm0 157.334c-32.349 0-58.667-26.318-58.667-58.667s26.318-58.667 58.667-58.667 58.667 26.318 58.667 58.667-26.318 58.667-58.667 58.667z"></path>
+            </g>
+        </symbol>
+        
+        <symbol id="parametre_2_formes" viewBox="0 0 490.986 576.93">
+            <g xmlns="http://www.w3.org/2000/svg" opacity="0.8">
+                <g>
+                    <circle fill="#FFFFFF" cx="245.493" cy="35" r="35"/>
+                    <circle fill="#FFFFFF" cx="336.872" cy="35" r="35"/>
+                    <circle fill="#FFFFFF" cx="154.113" cy="35" r="35"/>
+                </g>
+                <path fill="#FFFFFF" d="M397.44,115.944c35.039,0,63.545,28.507,63.545,63.543v303.898c0,35.039-28.506,63.545-63.545,63.545   H93.543C58.505,546.93,30,518.424,30,483.385V179.489c0-35.037,28.505-63.544,63.543-63.544L397.44,115.944 M397.44,85.944H93.543   C41.88,85.944,0,127.825,0,179.487v303.898c0,51.664,41.881,93.545,93.543,93.545H397.44c51.664,0,93.545-41.881,93.545-93.545   V179.489C490.985,127.825,449.104,85.944,397.44,85.944L397.44,85.944z"/>
+                <path fill="#FFFFFF" d="M43.949,235.276c0-56.938,46.32-103.26,103.258-103.26c56.939,0,103.263,46.322,103.263,103.26   c0,56.938-46.321,103.261-103.263,103.261C90.269,338.536,43.949,292.214,43.949,235.276z M73.949,235.276   c0,40.396,32.863,73.261,73.258,73.261c40.396,0,73.263-32.864,73.263-73.261c0-40.396-32.864-73.26-73.263-73.26   C106.812,162.016,73.949,194.88,73.949,235.276z"/>
+                <path fill="#FFFFFF" d="M241.981,326.537l59.547,209.422L90.392,482.818L241.981,326.537z M227.337,384.722l-79.231,81.686   l110.354,27.775L227.337,384.722z"/>
+                <path fill="#FFFFFF" d="M294.78,230.074l67.525,58.597l56.881-65.549c5.432-6.256,14.902-6.93,21.16-1.498   c6.256,5.43,6.928,14.901,1.498,21.16l-56.881,65.55l64.545,56.01c6.256,5.431,6.93,14.902,1.5,21.161   c-5.432,6.255-14.904,6.926-21.162,1.499l-64.545-56.013l-57.729,66.522c-5.432,6.255-14.904,6.928-21.16,1.497   c-6.258-5.43-6.928-14.904-1.5-21.161l57.729-66.521l-67.523-58.599c-6.256-5.43-6.93-14.901-1.5-21.158   C279.05,225.315,288.522,224.644,294.78,230.074z"/>
+            </g>
+            </symbol>
+
+            <symbol id="parametre_2_points" viewBox="0 0 490.986 576.93">
+            <g xmlns="http://www.w3.org/2000/svg" opacity="0.8">
+                <g>
+                    <circle fill="#FFFFFF" cx="245.493" cy="35" r="35"/>
+                    <circle fill="#FFFFFF" cx="336.873" cy="35" r="35"/>
+                    <circle fill="#FFFFFF" cx="154.113" cy="35" r="35"/>
+                </g>
+                <g>
+                    <path fill="#FFFFFF" d="M397.441,115.944c35.038,0,63.545,28.507,63.545,63.543v303.898c0,35.039-28.507,63.545-63.545,63.545    H93.543C58.505,546.93,30,518.424,30,483.385V179.489c0-35.037,28.505-63.544,63.543-63.544L397.441,115.944 M397.441,85.944    H93.543C41.88,85.944,0,127.825,0,179.487v303.898c0,51.664,41.881,93.545,93.543,93.545h303.898    c51.663,0,93.545-41.881,93.545-93.545V179.489C490.986,127.825,449.104,85.944,397.441,85.944L397.441,85.944z"/>
+                    <g>
+                        <circle fill="#FFFFFF" cx="287.152" cy="179.88" r="34.666"/>
+                        <circle fill="#FFFFFF" cx="403.334" cy="373.413" r="34.667"/>
+                        <circle fill="#FFFFFF" cx="292.411" cy="488.184" r="34.666"/>
+                        <circle fill="#FFFFFF" cx="359.397" cy="219.965" r="34.667"/>
+                        <circle fill="#FFFFFF" cx="204.541" cy="181.289" r="34.666"/>
+                        <circle fill="#FFFFFF" cx="363.248" cy="445.659" r="34.666"/>
+                        <circle fill="#FFFFFF" cx="95.029" cy="378.67" r="34.666"/>
+                        <circle fill="#FFFFFF" cx="137.553" cy="449.508" r="34.666"/>
+                        <circle fill="#FFFFFF" cx="93.621" cy="296.061" r="34.666"/>
+                    </g>
+                </g>
+            </g>
+            </symbol>
+
+            <symbol id="parametre_3_trait_OFF" viewBox="0 0 490.986 576.93">
+            <g xmlns="http://www.w3.org/2000/svg">
+                <circle opacity="0.8" fill="#FFFFFF" cx="199.805" cy="35" r="35"/>
+                <circle opacity="0.8" fill="#FFFFFF" cx="291.185" cy="35" r="35"/>
+                <circle opacity="0.8" fill="#FFFFFF" cx="382.565" cy="35" r="35"/>
+                <circle opacity="0.8" fill="#FFFFFF" cx="108.426" cy="35" r="35"/>
+                <path opacity="0.8" fill="#FFFFFF" d="M397.62,115.945c35.038,0,63.545,28.508,63.545,63.543v303.897   c0,35.039-28.507,63.545-63.545,63.545H93.722c-35.038,0-63.546-28.506-63.546-63.545V179.49c0-35.036,28.508-63.544,63.546-63.544   L397.62,115.945 M397.62,85.945H93.722c-51.663,0-93.546,41.884-93.546,93.543v303.897c0,51.664,41.884,93.545,93.546,93.545   h303.896c51.663,0,93.545-41.881,93.545-93.545V179.49C491.165,127.826,449.283,85.945,397.62,85.945L397.62,85.945z"/>
+                <g>
+                    <path opacity="0.54" fill="#FFFFFF" d="M30.176,289.687v193.698c0,35.039,28.508,63.545,63.546,63.545h54.115l98.01-216.708    L30.176,289.687z"/>
+                    <path opacity="0.59" fill="#FFFFFF" d="M147.837,546.93h249.782c35.038,0,63.545-28.506,63.545-63.545v-26.452L245.846,330.222    L147.837,546.93z"/>
+                    <path opacity="0.52" fill="#FFFFFF" d="M441.842,133.921L245.846,330.222l215.317,126.711V179.488    C461.164,161.628,453.745,145.477,441.842,133.921z"/>
+                    <path opacity="0.6" fill="#FFFFFF" d="M441.842,133.921c-11.448-11.113-27.046-17.977-44.223-17.977l-253.218,0.001    l101.445,214.276L441.842,133.921z"/>
+                    <path opacity="0.48" fill="#FFFFFF" d="M144.401,115.946h-50.68c-35.038,0-63.546,28.508-63.546,63.544v110.197l215.671,40.535    L144.401,115.946z"/>
+                </g>
+            </g>
+            </symbol>
+
+            <symbol id="parametre_3_trait_ON" viewBox="0 0 490.986 576.93">
+                <circle xmlns="http://www.w3.org/2000/svg" fill="#FFFFFF" cx="199.802" cy="35" r="35"/>
+                <circle xmlns="http://www.w3.org/2000/svg" fill="#FFFFFF" cx="291.182" cy="35" r="35"/>
+                <circle xmlns="http://www.w3.org/2000/svg" fill="#FFFFFF" cx="382.562" cy="35" r="35"/>
+                <circle xmlns="http://www.w3.org/2000/svg" fill="#FFFFFF" cx="108.423" cy="35" r="35"/>
+                <path xmlns="http://www.w3.org/2000/svg" opacity="0.55" fill="#FFFFFF" d="M93.545,546.93h37.651l92.938-205.497L29.999,304.949v178.436  C29.999,518.424,58.507,546.93,93.545,546.93z"/>
+                <path xmlns="http://www.w3.org/2000/svg" opacity="0.6" fill="#FFFFFF" d="M460.986,483.386v-9.049L252.455,351.618L164.122,546.93h233.32  c13.14,0,25.36-4.009,35.504-10.867C449.851,524.632,460.986,505.285,460.986,483.386z"/>
+                <path xmlns="http://www.w3.org/2000/svg" opacity="0.52" fill="#FFFFFF" d="M460.986,439.527v-260.04c0-0.043-0.002-0.086-0.003-0.13  c-0.002-0.941-0.029-1.876-0.072-2.807c-0.014-0.308-0.033-0.615-0.052-0.922c-0.044-0.728-0.101-1.452-0.169-2.173  c-0.025-0.272-0.047-0.547-0.076-0.818c-0.1-0.924-0.22-1.842-0.358-2.753c-0.046-0.296-0.1-0.59-0.149-0.885  c-0.108-0.651-0.227-1.299-0.355-1.943c-0.071-0.357-0.143-0.713-0.22-1.068c-0.149-0.684-0.312-1.362-0.481-2.037  c-0.103-0.404-0.208-0.807-0.318-1.208c-0.183-0.667-0.374-1.33-0.577-1.987c-0.123-0.395-0.251-0.786-0.381-1.177  c-0.167-0.503-0.341-1.002-0.521-1.5c-0.139-0.386-0.273-0.773-0.42-1.156c-0.292-0.765-0.598-1.522-0.918-2.272  c-0.164-0.384-0.34-0.763-0.511-1.143c-0.206-0.458-0.415-0.913-0.632-1.364c-0.189-0.395-0.381-0.788-0.577-1.177  c-0.252-0.498-0.513-0.99-0.777-1.48c-0.253-0.469-0.51-0.935-0.773-1.397c-0.32-0.561-0.646-1.118-0.983-1.667  c-0.199-0.326-0.404-0.647-0.608-0.969c-0.134-0.209-0.273-0.414-0.409-0.622L269.909,327.08L460.986,439.527z"/>
+                <path xmlns="http://www.w3.org/2000/svg" opacity="0.65" fill="#FFFFFF" d="M160.82,115.946l89.256,188.528l178.717-180.211c-0.32-0.183-0.641-0.366-0.965-0.544  c-0.412-0.225-0.826-0.448-1.244-0.665c-0.533-0.276-1.069-0.547-1.611-0.809c-0.366-0.177-0.734-0.349-1.104-0.519  c-0.461-0.212-0.926-0.417-1.393-0.618c-0.477-0.206-0.955-0.407-1.438-0.601c-0.55-0.221-1.104-0.437-1.661-0.643  c-0.359-0.133-0.722-0.262-1.085-0.389c-0.558-0.195-1.12-0.381-1.685-0.561c-0.364-0.116-0.729-0.23-1.095-0.34  c-0.68-0.202-1.363-0.393-2.052-0.573c-0.313-0.082-0.627-0.16-0.94-0.237c-0.72-0.176-1.442-0.342-2.171-0.493  c-0.176-0.037-0.35-0.076-0.526-0.111c-0.835-0.166-1.678-0.312-2.524-0.444c-0.255-0.04-0.509-0.078-0.765-0.115  c-0.883-0.127-1.769-0.243-2.663-0.333c-0.026-0.002-0.053-0.006-0.079-0.009c-0.935-0.093-1.876-0.159-2.822-0.211  c-0.217-0.012-0.434-0.022-0.651-0.032c-0.953-0.043-1.911-0.072-2.875-0.072L160.82,115.946z"/>
+                <path xmlns="http://www.w3.org/2000/svg" fill="#FFFFFF" d="M397.441,85.944H93.543C41.88,85.944,0,127.825,0,179.487v303.898c0,51.664,41.881,93.545,93.543,93.545  h303.898c51.663,0,93.545-41.881,93.545-93.545V179.489C490.986,127.825,449.104,85.944,397.441,85.944z M450.654,144.819  c6.522,9.979,10.332,21.888,10.332,34.668v260.04L269.909,327.08L450.654,144.819z M428.802,124.254l-178.726,180.22l-89.257-188.53  H397.44C408.843,115.944,419.539,118.976,428.802,124.254z M93.543,115.944h34.085l91.896,194.104L30,274.424v-94.938  C29.999,144.45,58.504,115.944,93.543,115.944z M29.999,483.386V304.949l194.135,36.483L131.196,546.93H93.543  C58.504,546.931,29.999,518.425,29.999,483.386z M397.441,546.931H164.122l88.333-195.313l208.531,122.719v9.049  C460.986,518.425,432.479,546.931,397.441,546.931z"/>
+                <path xmlns="http://www.w3.org/2000/svg" opacity="0.5" fill="#FFFFFF" d="M30,274.424l189.524,35.623l-91.896-194.102H93.545c-33.099,0-60.356,25.443-63.273,57.794  c-0.17,1.894-0.272,3.808-0.272,5.746V274.424z"/>
+            </symbol>
+
+            <symbol id="parametre_1_elu" viewBox="0 0 490.986 576.93">
+                <g xmlns="http://www.w3.org/2000/svg">
+                    <g>
+                        <circle opacity="0.8" fill="#FFFFFF" cx="199.889" cy="35.472" r="35"/>
+                        <circle opacity="0.8" fill="#FFFFFF" cx="291.269" cy="35.472" r="35"/>
+                        <path opacity="0.8" fill="#FFFFFF" d="M397.441,85.472H93.543C41.88,85.472,0,127.355,0,179.015v303.897    c0,51.664,41.881,93.545,93.543,93.545h303.898c51.662,0,93.545-41.881,93.545-93.545V179.017    C490.986,127.354,449.103,85.472,397.441,85.472z M450.654,144.347c6.521,9.979,10.332,21.887,10.332,34.668v260.04    L269.908,326.608L450.654,144.347z M428.799,123.782l-178.723,180.22l-89.257-188.53h236.62    C408.84,115.472,419.539,118.504,428.799,123.782z M93.543,115.472h34.085l91.896,194.103l-189.522-35.62v-94.938    C29.999,143.979,58.504,115.472,93.543,115.472z M29.999,482.914V304.477l194.135,36.484l-92.938,205.496H93.543    C58.504,546.459,29.999,517.953,29.999,482.914z M397.441,546.459H164.122l88.333-195.313l208.531,122.719v9.049    C460.986,517.953,432.478,546.459,397.441,546.459z"/>
+                    </g>
+                    <g opacity="0.6">
+                        <path fill="#FFFFFF" d="M428.799,123.782c-9.26-5.279-19.959-8.311-31.359-8.311H160.82L250.076,304L428.799,123.782z"/>
+                    </g>
+                </g>
+            </symbol>
+
+            <symbol id="parametre_1_ordre" viewBox="0 0 490.986 576.93">
+                <path xmlns="http://www.w3.org/2000/svg" opacity="0.8" fill="#FFFFFF" d="M397.528,85.944H93.629c-51.663,0-93.543,41.883-93.543,93.543v303.898  c0,51.664,41.881,93.545,93.543,93.545h303.899c51.662,0,93.545-41.881,93.545-93.545V179.489  C491.073,127.825,449.19,85.944,397.528,85.944z M450.741,144.819c6.521,9.979,10.332,21.887,10.332,34.668v260.04L269.995,327.08  L450.741,144.819z M428.885,124.254l-178.723,180.22l-89.258-188.53h236.621C408.927,115.944,419.626,118.976,428.885,124.254z   M93.629,115.944h34.085l91.896,194.103l-189.522-35.62v-94.938C30.085,144.45,58.59,115.944,93.629,115.944z M30.085,483.386  V304.949l194.134,36.484L131.282,546.93H93.629C58.59,546.931,30.085,518.425,30.085,483.386z M397.528,546.931h-233.32  l88.334-195.313l208.531,122.719v9.049C461.073,518.425,432.565,546.931,397.528,546.931z"/>
+                <circle xmlns="http://www.w3.org/2000/svg" opacity="0.8" fill="#FFFFFF" cx="199.889" cy="35.944" r="35"/>
+                <circle xmlns="http://www.w3.org/2000/svg" opacity="0.8" fill="#FFFFFF" cx="291.268" cy="35.944" r="35"/>
+                <g xmlns="http://www.w3.org/2000/svg" opacity="0.6">
+                    <path fill="#FFFFFF" d="M30.002,179.489v94.938l189.522,35.62l-91.896-194.103H93.543C58.504,115.944,29.999,144.45,30.002,179.489   z"/>
+                    <path fill="#FFFFFF" d="M428.8,124.254c-9.26-5.278-19.959-8.311-31.359-8.311H160.819l89.258,188.53L428.8,124.254z"/>
+                    <path fill="#FFFFFF" d="M460.987,179.487c0-12.781-3.811-24.688-10.332-34.668L269.909,327.08l191.078,112.446V179.487z"/>
+                    <path fill="#FFFFFF" d="M29.999,483.386c0,35.039,28.505,63.545,63.544,63.544h37.653l92.937-205.496L29.999,304.949V483.386z"/>
+                    <path fill="#FFFFFF" d="M460.987,483.386v-9.049L252.456,351.618l-88.334,195.313h233.32   C432.479,546.931,460.987,518.425,460.987,483.386z"/>
+                </g>
+            </symbol>
+
+    </svg>
+
+
     <div id="splash-screen">
         <div id="splash-content">
             <h1 id="splash-title">First Pick</h1>
+
             <div id="splash-button-container">
                 <img src="Bouton_Accueil_OFF.png" id="splash-btn-img" alt="Start">
             </div>
         </div>
+    </div>
+
+    <!-- LA BARRE DE PARAMÈTRES (TABLEAU DE BORD) -->
+    <div id="settings-status-bar">
+        <svg class="status-icon"><use id="status-mode" href="#parametre_1_elu"></use></svg>
+        <svg class="status-icon"><use id="status-system" href="#parametre_2_formes"></use></svg>
+        <svg class="status-icon"><use id="status-style" href="#parametre_3_trait_ON"></use></svg>
     </div>
     
     <canvas id="canvas"></canvas>
@@ -131,7 +270,7 @@ function debugLog(msg, color = "red") {
 }
 
 // --- LE JUKEBOX (CONFIGURATION & PRECHARGEMENT PRIORITAIRE) ---
-const SONS_A_CHARGER = ['tick.wav', 'bouton.wav', 'ordre_ON.wav', 'elu_ON.wav', 'trait_ON_1.wav', 'trait_ON_2.wav', 'trait_OFF_1.wav', '']; 
+const SONS_A_CHARGER = ['tick.wav', 'bouton.wav', 'ordre_ON.wav', 'elu_ON.wav', 'trait_ON_1.wav', 'trait_ON_2.wav', 'trait_OFF_1.wav', 'formes-points.wav']; 
 let audioCtx = null;
 let soundLibrary = {}; 
 
@@ -178,6 +317,12 @@ function mixColors(color1, color2, weight) {
 const DURATION_BEFORE_SPLASH_SCREEN_ANIMATION = 500; // Temps d'attente après le clic (ms)
 const DUREE_ANIMATION_BOUTON_SPLASH = 75; // Temps en ms avant la remontée automatique
 
+// --- PARAMÈTRES VISUELS DES ICÔNES DE RÉGLAGES ---
+const SETTINGS_ICONS_Y_PERCENT = 20;     // Position verticale (en % de l'écran, 0 = haut, 100 = bas)
+const SETTINGS_ICONS_SIZE = 60;          // Taille des icônes (px)
+const SETTINGS_ICONS_GAP = 20;           // Espace horizontal entre chaque icône (px)
+const SETTINGS_ICONS_OPACITY = 0.22;      // Transparence maximale (0.0 à 1.0)
+
 // --- CONFIGURATION DE LA DUREE POUR SAVOIR DETECTER SI C'EST UN CHANGEMENT DE PARAMETRE ---
 const TAP_MAX_DURATION = 150;    
 const MULTI_TAP_WINDOW = 150;
@@ -199,8 +344,9 @@ const DUREE_FADE_ZONES_ORDRE = 0.3; // Phase 3 : Fondu (secondes)
 
 window.resultZonesOpacity = 1.0; // Contrôle interne du fondu des zones
 
-// --- VARIABLE POUR LA DUREE DE LA DISPARITION DU FEEDBACK VISUEL LORS DU CHANGEMENT DE PARAMETRES
+// --- VARIABLES POUR LA DUREE DE LA DISPARITION DU FEEDBACK VISUEL LORS DU CHANGEMENT DE PARAMETRES ET CELUI POUR L'APPARITION DE L'ECRAN SUIVANT ---
 const FEEDBACK_FADE_OUT_DURATION_PARAMETER_CHANGE = 0.2; // Temps de disparition en secondes
+const FEEDBACK_FADE_IN_DURATION_OF_NEXT_SCREEN_AFTER_PARAMETER_CHANGE = 0.2; // Temps d'apparition de l'écran suivant (en secondes)
 
 // --- VARIABLE POUR LA DUREE Du FADE OUT APRES L'ISSUE DU CYCLE DE LA ROUE
 const RESOLUTION_FADE_MS = 300; // Durée de la disparition du gagnant (en millisecondes)
@@ -228,6 +374,13 @@ const ROUE_RESET_DELAY = 0; // <--- TA VARIABLE (0 = instantané, 400 = délai a
 // --- RÉGLAGE DE LA VITSSE DE CYCLAGE DES COULUERS EN MODE PARAMETRE (UN CONTACT SUR L'ECRAN) ---
 const CYCLE_VITESSE_MS = 1500; // Vitesse de la respiration (en ms). 3000 = 3 secondes.
 
+// --- PARAMÈTRES DE L'ICÔNE RÉGLAGES (1 DOIGT) ---
+const ICON_SETTINGS_SIZE = 200;        // Taille de l'icône sur l'écran
+const ICON_SETTINGS_COLOR = '#FFFFFF'; // Couleur (blanc par défaut)
+const ICON_SETTINGS_OPACITY = 0.3;     // Transparence maximale (0.0 = invisible, 1.0 = 100% opaque)
+const ICON_SETTINGS_FADE_MS = 500;     // Durée d'apparition en millisecondes
+const ICON_SETTINGS_PATH = new Path2D("m489.514 296.695-21.3-17.534c-14.59-12.011-14.564-34.335.001-46.322l21.299-17.534c15.157-12.479 19.034-33.877 9.218-50.882l-42.058-72.846c-9.818-17.004-30.292-24.344-48.674-17.458l-25.835 9.679c-17.696 6.628-37.016-4.551-40.117-23.161l-4.535-27.214c-3.228-19.366-19.821-33.423-39.455-33.423h-84.115c-19.635 0-36.229 14.057-39.456 33.424l-4.536 27.213c-3.107 18.643-22.453 29.778-40.116 23.162l-25.835-9.68c-18.383-6.886-38.855.455-48.674 17.458l-42.057 72.845c-9.817 17.003-5.941 38.402 9.218 50.882l21.299 17.534c14.592 12.012 14.563 34.334 0 46.322l-21.3 17.534c-15.158 12.48-19.035 33.879-9.218 50.882l42.058 72.846c9.818 17.003 30.286 24.344 48.674 17.458l25.834-9.679c17.699-6.631 37.015 4.556 40.116 23.161l4.536 27.212c3.228 19.369 19.822 33.426 39.456 33.426h84.115c19.634 0 36.228-14.057 39.455-33.424l4.535-27.212c3.106-18.638 22.451-29.781 40.117-23.161l25.836 9.678c18.387 6.887 38.856-.454 48.674-17.458l42.059-72.847c9.815-17.003 5.938-38.402-9.219-50.881zm-67.481 103.728-25.835-9.679c-41.299-15.471-86.37 10.63-93.605 54.043l-4.535 27.213h-84.115l-4.536-27.213c-7.249-43.497-52.386-69.484-93.605-54.043l-25.835 9.679-42.057-72.846 21.299-17.534c34.049-28.03 33.978-80.114 0-108.086l-21.299-17.534 42.058-72.846 25.834 9.679c41.3 15.47 86.37-10.63 93.605-54.043l4.535-27.213h84.115l4.535 27.213c7.25 43.502 52.389 69.481 93.605 54.043l25.835-9.679 42.067 72.836s-.003.003-.011.009l-21.298 17.534c-34.048 28.028-33.98 80.113-.001 108.086l21.3 17.534zm-166.033-243.09c-54.405 0-98.667 44.262-98.667 98.667s44.262 98.667 98.667 98.667 98.667-44.262 98.667-98.667-44.262-98.667-98.667-98.667zm0 157.334c-32.349 0-58.667-26.318-58.667-58.667s26.318-58.667 58.667-58.667 58.667 26.318 58.667 58.667-26.318 58.667-58.667 58.667z");
+
 // --- LISTE DES COULEURS A CYCLER QUAND LE MODE PARAMETRE EST ACTIF ---
 const CYCLE_COULEURS = ['#FF4646', '#FF8F4D', '#FFFF42', '#75FE71', '#2FFFFC', '#1e6eff', '#CF3BFC', '#FFAFFF'];
 
@@ -238,8 +391,8 @@ const ROUE_REBOND_MAX = 1000;       // Silence long (ms)
 
 // --- PARAMÈTRES FEEDBACK (TWEAK) ---
 const FEEDBACK_TYPE = 'FORMES';      // 'FORMES' ou 'POINTS'
-const FEEDBACK_FORMES_SIZE = 80;     // Taille des formes (Carré, Triangle...)
-const FEEDBACK_POINTS_DIAMETRE = 80; // Diamètre du cercle de rotation des points
+const FEEDBACK_FORMES_SIZE = 70;     // Taille des formes (Carré, Triangle...)
+const FEEDBACK_POINTS_DIAMETRE = 70; // Diamètre du cercle de rotation des points
 const FEEDBACK_THICKNESS = 12;        // Épaisseur des traits
 const FEEDBACK_ROTATION_TPS = 0.1;    // Vitesse en TOURS PAR SECONDE (Ex: 0.5 = 180°/s)
 const FEEDBACK_ORBIT_DOTS_GROUPS = 3; // Nombre de groupes de points (X)
@@ -261,10 +414,9 @@ const GAME_POINTS_DIAMETRE = 110;     // Diamètre des points (EN JEU)
 
 // --- PARAMETRES DE TRANSITION CROSSFADE (MENU POINTS/FORMES) ---
 const CROSSFADE_START_DELAY_MS = 150;    // Délai avant lancement de l'apparition (croisement)
-const CROSSFADE_SHRINK_FORMES = 0.5;     // Réduction visée des formes (0.5 = 50% de sa taille)
-const CROSSFADE_SHRINK_POINTS = 0.5;     // Réduction visée des points (0.5 = 50% de sa taille)
 const CROSSFADE_DUREE_FORMES_MS = 400;   // Durée d'animation des formes (réduction + fondu)
 const CROSSFADE_DUREE_POINTS_MS = 400;   // Durée d'animation des points (réduction + fondu)
+const CARROUSEL_ROTATION_ANGLE = Math.PI / 3; // L'angle de balayage du projecteur (ici 60 degrés)
 
 let fixedZones = []; // Stockage des séparations fixes
 
@@ -275,7 +427,7 @@ const FAMILLES = [
     ['#FFFF42'], // 2: Jaune (VIP)
     ['#BDFF22'], // 3: Vert citron
     ['#0BF500'], // 4: Vert clair (VIP)
-    ['#01FFCE'], // 5: Menthe
+    ['#2FFFCC'], // 5: Menthe
     ['#00EAFF'], // 6: Bleu Ciel
     ['#00AEEF'], // 7: Bleu (VIP)
     ['#CF3BFC'], // 8: Violet
@@ -361,24 +513,46 @@ window.addEventListener('resize', resize);
 resize();
 
 function lancerFermeturePreview(delaiSecondes) {
-    clearTimeout(modePreviewTimer); // On tue l'ancien timer s'il existe
+    clearTimeout(modePreviewTimer);
     modePreviewTimer = setTimeout(() => {
-        const startFade = performance.now();
-        const duration = FEEDBACK_FADE_OUT_DURATION_PARAMETER_CHANGE * 1000;
+        const startFadeOut = performance.now();
+        const fadeOutDuration = FEEDBACK_FADE_OUT_DURATION_PARAMETER_CHANGE * 1000;
 
+        // PHASE 1 : La fermeture du rideau (Fondu vers le noir)
         function animateFadeOut() {
             const now = performance.now();
-            const progress = (now - startFade) / duration;
+            const progress = (now - startFadeOut) / fadeOutDuration;
 
             if (progress < 1) {
                 globalFadeOpacity = 1 - progress;
                 requestAnimationFrame(animateFadeOut);
             } else {
+                globalFadeOpacity = 0; // Noir complet garanti
+                
+                // PHASE 2 : Changement de décor dans l'obscurité (On déverrouille le système)
                 isModePreview = false;
                 isNeonFlickering = false;
                 window.isPreviewDispersion = false; 
                 currentPreviewParam = null;
-                globalFadeOpacity = 1.0;
+                window.oneFingerStartTime = null; // Prépare le fondu de l'icône
+                resetRoueTimer(); // Autorise la lecture des doigts actuels
+                
+                // PHASE 3 : Le lever de rideau (Fondu depuis le noir)
+                const startFadeIn = performance.now();
+                const fadeInDuration = FEEDBACK_FADE_IN_DURATION_OF_NEXT_SCREEN_AFTER_PARAMETER_CHANGE * 1000;
+                
+                function animateFadeIn() {
+                    const nowIn = performance.now();
+                    const progressIn = (nowIn - startFadeIn) / fadeInDuration;
+                    
+                    if (progressIn < 1) {
+                        globalFadeOpacity = progressIn;
+                        requestAnimationFrame(animateFadeIn);
+                    } else {
+                        globalFadeOpacity = 1.0; // Lumière totale
+                    }
+                }
+                animateFadeIn();
             }
         }
         animateFadeOut();
@@ -386,7 +560,8 @@ function lancerFermeturePreview(delaiSecondes) {
 }
 
 function handleSettings(count) {
-    if (activeSnapshot) return; 
+    // BOUCLIER : On verrouille les inputs si l'écran de résultat ou la vitrine est actif
+    if (activeSnapshot || isModePreview) return; 
     currentPreviewParam = count;
 
     // NETTOYAGE RADICAL DE TOUS LES TIMERS ET ÉTATS PRÉCÉDENTS
@@ -473,6 +648,7 @@ function handleSettings(count) {
     }
 
     localStorage.setItem('firstPickSettings', JSON.stringify(config));
+    updateSettingsIcons();
 }
 
 function showToast(msg) {
@@ -737,7 +913,7 @@ function updateTouches(touchList) {
 
 function resetRoueTimer() {
     // LE BOUCLIER : Si une photo (Snapshot) est active, on bloque tout changement de moteur
-    if (activeSnapshot) return;
+    if (activeSnapshot || isModePreview) return;
 
     const wasSpinning = isSpinning;
 
@@ -1076,8 +1252,8 @@ function draw() {
     let currentWinnerId = activeSnapshot ? activeSnapshot.winnerId : winnerId;
 
     // --- LOGIQUE DE PREVIEW DU MODE ---
-    // On autorise l'affichage même si un doigt (l'ancrage) est encore là
-    if (isModePreview && !activeSnapshot && (touches.length === 0 || touches.length === 1)) {
+    // BOUCLIER VISUEL : On force l'affichage de la vitrine peu importe le nombre de doigts
+    if (isModePreview && !activeSnapshot) {
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
         dataSource = [];
@@ -1116,6 +1292,8 @@ function draw() {
 
     // Si on n'est pas en train de montrer le feedback et qu'il n'y a pas de doigts
     if (dataSource.length === 0 && !activeSnapshot && !isModePreview) {
+        // COUPURE DE COURANT : On éteint la barre d'icônes HTML quand l'écran est vide
+        document.getElementById('settings-status-bar').style.opacity = 0;
         requestAnimationFrame(draw);
         return; 
     }
@@ -1124,23 +1302,53 @@ function draw() {
     const centerY = canvas.height / 2;
     const baseRadius = Math.max(canvas.width, canvas.height) * 1.5;
 
+    if (dataSource.length !== 1) {
+        window.oneFingerStartTime = null; // On remet le chrono à zéro
+        // EXTINCTION IMMÉDIATE DES ICÔNES HTML SI ON LÂCHE OU SI 2 DOIGTS
+        document.getElementById('settings-status-bar').style.opacity = 0; 
+    }
+
     if (dataSource.length === 1) {
         ctx.globalAlpha = globalFadeOpacity;
         
         // --- LOGIQUE DE CYCLE (Respiration) ---
         const temps = performance.now() / CYCLE_VITESSE_MS;
         
-        // On utilise la nouvelle liste CYCLE_COULEURS
         const indexActuel = Math.floor(temps % CYCLE_COULEURS.length);
         const indexSuivant = (indexActuel + 1) % CYCLE_COULEURS.length;
         const progression = temps % 1; 
 
-        // On mélange les deux couleurs sélectionnées dans la nouvelle liste
         const couleurVivante = mixColors(CYCLE_COULEURS[indexActuel], CYCLE_COULEURS[indexSuivant], progression);
         
         ctx.fillStyle = couleurVivante;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-    } 
+
+        // --- AFFICHAGE DE L'ICÔNE RÉGLAGES EN PLEIN CENTRE ---
+        if (!window.oneFingerStartTime) window.oneFingerStartTime = performance.now();
+        
+        let elapsedIcon = performance.now() - window.oneFingerStartTime;
+        let iconProgress = Math.min(1, elapsedIcon / ICON_SETTINGS_FADE_MS);
+        
+        if (iconProgress > 0) {
+            // ALLUMAGE SYNCHRONISÉ DES ICÔNES HTML 
+            document.getElementById('settings-status-bar').style.opacity = iconProgress * SETTINGS_ICONS_OPACITY * globalFadeOpacity;
+
+            ctx.save();
+            ctx.globalAlpha = iconProgress * ICON_SETTINGS_OPACITY * globalFadeOpacity;
+            ctx.translate(centerX, centerY);
+            
+            // Le dessin original fait 512x512, le canvas le réduit à la taille voulue
+            let scaleFactor = ICON_SETTINGS_SIZE / 512;
+            ctx.scale(scaleFactor, scaleFactor);
+            
+            // On recentre précisément (la moitié de 512 = 256)
+            ctx.translate(-256, -256);
+            
+            ctx.fillStyle = ICON_SETTINGS_COLOR;
+            ctx.fill(ICON_SETTINGS_PATH);
+            ctx.restore();
+        }
+    }
     else if (dataSource.length >= 2) {
         let currentAngles = [];
         let sortedTouches = [...dataSource].sort((a, b) => a.angle - b.angle);
@@ -1226,39 +1434,6 @@ function draw() {
             ctx.globalAlpha = totalAlpha;
             ctx.fillStyle = finalColor;
             ctx.fill();
-        }
-
-        // --- ANIMATION ET DESSIN DES BORDURES ---
-        if (window.bordureAnimStart === undefined) window.bordureAnimStart = 0;
-        let elapsed = performance.now() - window.bordureAnimStart;
-        
-        let targetFadeTime = (config.style === 'BORDURES ON') ? BORDURES_FADE_MS : GOMME_DUREE_MS;
-        
-        if (config.style === 'BORDURES ON') {
-            let t = Math.min(1, elapsed / BORDURES_FADE_MS);
-            window.borduresProgress = t * t * (3 - 2 * t); // Courbe fluide
-        } else {
-            // MODE GOMME
-            let t = Math.min(1, elapsed / GOMME_DUREE_MS);
-            let currentPos = 0;
-            if (window.gommeSteps && window.gommeSteps.length > 0) {
-                for (let i = 0; i < window.gommeSteps.length - 1; i++) {
-                    let stepStart = window.gommeSteps[i];
-                    let stepEnd = window.gommeSteps[i+1];
-                    if (t >= stepStart.timeRatio && t <= stepEnd.timeRatio) {
-                        let localT = (t - stepStart.timeRatio) / (stepEnd.timeRatio - stepStart.timeRatio);
-                        
-                        // L'app calcule la vitesse du coup selon ta pause
-                        let tempsMouvement = 1.0 - GOMME_PAUSE_RATIO;
-                        let friction = Math.min(1, localT / tempsMouvement); 
-                        
-                        currentPos = stepStart.pos - (stepStart.pos - stepEnd.pos) * friction;
-                        break;
-                    }
-                }
-                if (t >= 1) currentPos = 0;
-            }
-            window.borduresProgress = currentPos;
         }
 
         // DETECTION DE FIN POUR LE FADE OUT DES TRAITS
@@ -1347,72 +1522,163 @@ function draw() {
     }
 
     // --- AFFICHAGE DU CROSSFADE (PREVIEW SYSTÈME) ---
+    // --- AFFICHAGE DU CROSSFADE (PREVIEW SYSTÈME - CARROUSEL) ---
     if (isModePreview && window.isPreviewDispersion) {
-        ctx.save();
-        
-        const PREVIEW_TARGETS_PHYSICAL = {
-            0: { x: 703, y: 565 },
-            1: { x: 910, y: 1156 },
-            2: { x: 643, y: 1661 },
-            3: { x: 219, y: 1320 },
-            4: { x: 200, y: 857 }
-        };
-
         const pixelRatio = window.devicePixelRatio || 1;
         
-        dataSource.forEach(targetTouch => {
+        // On pré-calcule les séparateurs pour le Clipping
+        let separators = [];
+        let sorted = [...dataSource].sort((a, b) => a.angle - b.angle);
+        for (let i = 0; i < sorted.length; i++) {
+            let current = sorted[i];
+            let next = sorted[(i + 1) % sorted.length];
+            let diff = next.angle - current.angle;
+            if (diff < 0) diff += Math.PI * 2;
+            separators.push(current.angle + diff / 2);
+        }
+
+        dataSource.forEach((targetTouch, index) => {
             if (targetTouch.id.startsWith("ghost") && targetTouch.count) {
                 const rankIdx = targetTouch.count - 1; 
-                const ghostIndex = parseInt(targetTouch.id.replace("ghost", ""), 10);
                 
-                let targetPos = { x: centerX, y: centerY };
-                if (PREVIEW_TARGETS_PHYSICAL[ghostIndex] !== undefined) {
-                    targetPos.x = PREVIEW_TARGETS_PHYSICAL[ghostIndex].x / pixelRatio;
-                    targetPos.y = PREVIEW_TARGETS_PHYSICAL[ghostIndex].y / pixelRatio;
-                } else {
-                    targetPos = calculateZoneBarycenter(targetTouch.angle);
-                }
+                // Calcul de l'angle central naturel de la zone
+                let startSep = separators.find((s, i) => {
+                    let nextS = separators[(i + 1) % separators.length];
+                    let diff = targetTouch.angle - s;
+                    while (diff < 0) diff += Math.PI * 2;
+                    let span = nextS - s;
+                    while (span <= 0) span += Math.PI * 2;
+                    return diff >= 0 && diff < span;
+                });
+                let sepIdx = separators.indexOf(startSep);
+                let endSep = separators[(sepIdx + 1) % separators.length];
                 
-                // 1. DESSIN DE L'ANCIEN ETAT (FADE OUT & SHRINK)
+                // Le centre de la zone (calculé au rayon du jeu normal)
+                let midAngle = startSep + ((endSep < startSep ? endSep + Math.PI * 2 : endSep) - startSep) / 2;
+                // On pousse la forme un peu vers l'extérieur pour qu'elle s'approche des bords
+                let radiusOffset = Math.max(canvas.width, canvas.height) * 0.25;
+                let targetPos = { 
+                    x: centerX + Math.cos(midAngle) * radiusOffset, 
+                    y: centerY + Math.sin(midAngle) * radiusOffset 
+                };
+
+                // --- LE MASQUE DE DÉCOUPE (Le capot du projecteur) ---
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, baseRadius, startSep, (endSep < startSep ? endSep + Math.PI * 2 : endSep));
+                ctx.closePath();
+                ctx.clip(); // <-- LA MAGIE EST ICI : Tout ce qui sort de ce triangle sera coupé net !
+                
+                // 1. DESSIN DE L'ANCIEN ETAT (Sortie inversée)
                 if (window.dispersionOldProgress !== undefined && window.dispersionOldProgress < 1) {
                     const tOld = window.dispersionOldProgress;
                     const smoothOld = tOld * tOld * (3 - 2 * tOld); // Lissage pro
-                    const shrinkTarget = window.dispersionOldSystem === 'FORMES' ? CROSSFADE_SHRINK_FORMES : CROSSFADE_SHRINK_POINTS;
                     
-                    // Scale de 1.0 descendant jusqu'à la limite visée
-                    window.overrideFeedbackScale = 1.0 - (smoothOld * (1.0 - shrinkTarget));
-                    // Opacité de 1.0 descendant vers 0.0
+                    ctx.save();
+                    // On tourne tout le plateau autour du centre de l'écran
+                    ctx.translate(centerX, centerY);
+                    // INVERSION : L'ancien système pivote vers l'angle négatif
+                    ctx.rotate(smoothOld * -CARROUSEL_ROTATION_ANGLE);
+                    ctx.translate(-centerX, -centerY);
+                    
                     window.overrideFeedbackAlpha = (1.0 - smoothOld) * globalFadeOpacity;
                     window.overrideFeedbackStyle = window.dispersionOldSystem;
+                    window.overrideFeedbackScale = 1.0; // Pas de rétrécissement
                     
                     drawFeedback(targetPos.x, targetPos.y, rankIdx);
+                    ctx.restore();
                 }
 
-                // 2. DESSIN DU NOUVEL ETAT (FADE IN & GROW)
+                // 2. DESSIN DU NOUVEL ETAT (Entrée inversée)
                 if (window.dispersionNewProgress !== undefined && window.dispersionNewProgress > 0) {
                     const tNew = window.dispersionNewProgress;
                     const smoothNew = tNew * tNew * (3 - 2 * tNew);
-                    const shrinkTarget = window.dispersionNewSystem === 'FORMES' ? CROSSFADE_SHRINK_FORMES : CROSSFADE_SHRINK_POINTS;
                     
-                    // Scale montant depuis la limite visée jusqu'à 1.0
-                    window.overrideFeedbackScale = shrinkTarget + (smoothNew * (1.0 - shrinkTarget));
-                    // Opacité montant de 0.0 vers 1.0
+                    ctx.save();
+                    // On tourne tout le plateau autour du centre de l'écran
+                    ctx.translate(centerX, centerY);
+                    // INVERSION : Le nouveau système arrive depuis l'angle positif
+                    ctx.rotate((1.0 - smoothNew) * CARROUSEL_ROTATION_ANGLE);
+                    ctx.translate(-centerX, -centerY);
+                    
                     window.overrideFeedbackAlpha = smoothNew * globalFadeOpacity;
                     window.overrideFeedbackStyle = window.dispersionNewSystem;
+                    window.overrideFeedbackScale = 1.0; // Pas de rétrécissement
                     
                     drawFeedback(targetPos.x, targetPos.y, rankIdx);
+                    ctx.restore();
                 }
                 
-                // 3. NETTOYAGE DES FORCAGES (Protection du reste du code)
+                // Fin du masque de découpe pour cette zone
+                ctx.restore();
+                
+                // Nettoyage des forcages
                 window.overrideFeedbackScale = undefined;
                 window.overrideFeedbackAlpha = undefined;
                 window.overrideFeedbackStyle = undefined;
             }
         });
-        ctx.restore();
     }
+
+    // --- ANIMATION ET DESSIN DES BORDURES ---
+    if (window.bordureAnimStart === undefined) window.bordureAnimStart = 0;
+    let elapsed = performance.now() - window.bordureAnimStart;
+    
+    let targetFadeTime = (config.style === 'BORDURES ON') ? BORDURES_FADE_MS : GOMME_DUREE_MS;
+    
+    if (config.style === 'BORDURES ON') {
+        let t = Math.min(1, elapsed / BORDURES_FADE_MS);
+        window.borduresProgress = t * t * (3 - 2 * t); // Courbe fluide
+    } else {
+        // MODE GOMME
+        let t = Math.min(1, elapsed / GOMME_DUREE_MS);
+        let currentPos = 0;
+        if (window.gommeSteps && window.gommeSteps.length > 0) {
+            for (let i = 0; i < window.gommeSteps.length - 1; i++) {
+                let stepStart = window.gommeSteps[i];
+                let stepEnd = window.gommeSteps[i+1];
+                if (t >= stepStart.timeRatio && t <= stepEnd.timeRatio) {
+                    let localT = (t - stepStart.timeRatio) / (stepEnd.timeRatio - stepStart.timeRatio);
+                    
+                    // L'app calcule la vitesse du coup selon ta pause
+                    let tempsMouvement = 1.0 - GOMME_PAUSE_RATIO;
+                    let friction = Math.min(1, localT / tempsMouvement); 
+                    
+                    currentPos = stepStart.pos - (stepStart.pos - stepEnd.pos) * friction;
+                    break;
+                }
+            }
+            if (t >= 1) currentPos = 0;
+        }
+        window.borduresProgress = currentPos;
+    }
+
     requestAnimationFrame(draw);
 }
+
+function updateSettingsIcons() {
+    // 0. Application des paramètres visuels (Tweaks)
+    document.documentElement.style.setProperty('--settings-icons-y', SETTINGS_ICONS_Y_PERCENT + '%');
+    document.documentElement.style.setProperty('--settings-icons-size', SETTINGS_ICONS_SIZE + 'px');
+    document.documentElement.style.setProperty('--settings-icons-gap', SETTINGS_ICONS_GAP + 'px');
+
+    // 1. Choix de l'icône Élu ou Ordre
+    const modeIcon = config.mode === 'ÉLU UNIQUE' ? '#parametre_1_elu' : '#parametre_1_ordre';
+    document.getElementById('status-mode').setAttribute('href', modeIcon);
+
+    // 2. Choix de l'icône Formes ou Points
+    const systemIcon = config.system === 'FORMES' ? '#parametre_2_formes' : '#parametre_2_points';
+    document.getElementById('status-system').setAttribute('href', systemIcon);
+
+    // 3. Choix de l'icône Traits ON ou OFF
+    const styleIcon = config.style === 'BORDURES ON' ? '#parametre_3_trait_ON' : '#parametre_3_trait_OFF';
+    document.getElementById('status-style').setAttribute('href', styleIcon);
+}
+
+// On l'exécute immédiatement au lancement
+updateSettingsIcons();
+
 draw();
 
 </script>
